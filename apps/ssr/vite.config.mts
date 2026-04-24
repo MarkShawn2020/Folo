@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url"
 
 import react from "@vitejs/plugin-react"
-import { codeInspectorPlugin } from "code-inspector-plugin"
+import { lovinspPlugin } from "lovinsp"
 import { dirname, resolve } from "pathe"
 import { defineConfig } from "vite"
 import { routeBuilderPlugin } from "vite-plugin-route-builder"
@@ -41,7 +41,7 @@ export default defineConfig({
     }),
     react(),
     astPlugin,
-    codeInspectorPlugin({
+    lovinspPlugin({
       bundler: "vite",
       editor: "cursor",
       hotKeys: ["altKey"],

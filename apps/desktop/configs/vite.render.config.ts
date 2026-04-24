@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
 import react from "@vitejs/plugin-react"
-import { codeInspectorPlugin } from "code-inspector-plugin"
+import { lovinspPlugin } from "lovinsp"
 import { dirname, resolve } from "pathe"
 import { prerelease } from "semver"
 import type { UserConfig } from "vite"
@@ -63,7 +63,7 @@ export const viteRenderBaseConfig = {
       },
     },
     localesJsonPlugin(),
-    codeInspectorPlugin({
+    lovinspPlugin({
       bundler: "vite",
       hotKeys: ["altKey"],
     }),
