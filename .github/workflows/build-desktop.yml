@@ -129,7 +129,7 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Install dependencies
-        run: pnpm i
+        run: pnpm i --child-concurrency=1
 
       - name: Prebuild packages (Windows)
         if: runner.os == 'windows'
@@ -405,7 +405,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm i
+        run: pnpm i --child-concurrency=1
 
       - name: Download release assets
         uses: actions/download-artifact@v8
