@@ -1,11 +1,14 @@
 import { AutoResizeHeight } from "@follow/components/ui/auto-resize-height/index.js"
 import { MotionButtonBase } from "@follow/components/ui/button/index.js"
+import { createByokRequestPayload } from "@follow/shared/settings/byok"
 import { cn } from "@follow/utils/utils"
 import { FollowAPIError } from "@follow-app/client-sdk"
 import type { ReactNode } from "react"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useIsPaymentEnabled } from "~/atoms/server-configs"
+import { useAISettingKey } from "~/atoms/settings/ai"
 import { useSpotlightSettingKey } from "~/atoms/settings/spotlight"
 import { CopyButton } from "~/components/ui/button/CopyButton"
 import { Markdown } from "~/components/ui/markdown/Markdown"
@@ -109,12 +112,20 @@ export const AISummaryCardBase: React.FC<AISummaryCardBaseProps> = ({
   error,
 }) => {
   const { t } = useTranslation("app")
-  const aiEnabled = useFeature("ai")
+  const byokSettings = useAISettingKey("byok")
+  const isByokActive = useMemo(
+    () => createByokRequestPayload(byokSettings) !== null,
+    [byokSettings],
+  )
+  const aiEnabled = useFeature("ai") || isByokActive
+  const isPaymentEnabled = useIsPaymentEnabled()
   const spotlightRules = useSpotlightSettingKey("spotlights")
 
   const hasContent = !isLoading && content
   const shouldSuggestUpgrade =
-    useIsPaymentEnabled() && error instanceof FollowAPIError ? error.status === 402 : undefined
+    !isByokActive && isPaymentEnabled && error instanceof FollowAPIError
+      ? error.status === 402
+      : undefined
 
   return (
     <div
@@ -161,7 +172,7 @@ export const AISummaryCardBase: React.FC<AISummaryCardBaseProps> = ({
                   "absolute inset-0 rounded-full blur-sm",
                   isLoading
                     ? "animate-[pulse_2s_infinite] bg-purple-400/30 dark:bg-purple-500/30"
-                    : "animate-pulse bg-purple-400/20 dark:bg-purple-500/20",
+                    : "bg-purple-400/20 dark:bg-purple-500/20",
                 )}
               />
             </div>

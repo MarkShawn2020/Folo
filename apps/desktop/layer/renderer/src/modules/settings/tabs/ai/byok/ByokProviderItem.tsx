@@ -3,23 +3,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@follow/components/ui/t
 import type { UserByokProviderConfig } from "@follow/shared/settings/interface"
 import { useTranslation } from "react-i18next"
 
+import { BYOK_PROVIDER_LABELS } from "./constants"
+
 interface ByokProviderItemProps {
   provider: UserByokProviderConfig
   onDelete: () => void
   onEdit: () => void
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
-  openai: "OpenAI",
-  google: "Google",
-  "vercel-ai-gateway": "Vercel AI Gateway",
-  openrouter: "OpenRouter",
-}
-
 export const ByokProviderItem = ({ provider, onEdit, onDelete }: ByokProviderItemProps) => {
   const { t } = useTranslation("ai")
 
-  const providerLabel = PROVIDER_LABELS[provider.provider] || provider.provider
+  const providerLabel = BYOK_PROVIDER_LABELS[provider.provider] || provider.provider
+  const secondaryLabel = [provider.model, provider.baseURL].filter(Boolean).join(" · ")
 
   return (
     <div className="group -ml-3 rounded-lg border border-border p-3 transition-colors hover:bg-material-medium">
@@ -31,6 +27,9 @@ export const ByokProviderItem = ({ provider, onEdit, onDelete }: ByokProviderIte
               {t("byok.providers.configured")}
             </span>
           </div>
+          {secondaryLabel && (
+            <div className="mt-1 truncate text-xs text-text-secondary">{secondaryLabel}</div>
+          )}
         </div>
 
         <div className="ml-4 flex items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">

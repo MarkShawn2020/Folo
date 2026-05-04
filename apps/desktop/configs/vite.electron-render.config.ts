@@ -42,6 +42,15 @@ export default {
   ],
 
   root: VITE_ROOT,
+  server: {
+    proxy: {
+      "/__byok/zenmux": {
+        target: "https://zenmux.ai",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/__byok\/zenmux/, "/api/v1"),
+      },
+    },
+  },
   build: {
     outDir: resolve(root, "dist/renderer"),
     sourcemap: isStaging || !!process.env.CI,

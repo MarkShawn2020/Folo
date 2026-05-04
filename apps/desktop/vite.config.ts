@@ -123,6 +123,11 @@ export default ({ mode }) => {
         "/reset-password": proxyConfig,
         "/register": proxyConfig,
         "/share": proxyConfig,
+        "/__byok/zenmux": {
+          target: "https://zenmux.ai",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/__byok\/zenmux/, "/api/v1"),
+        },
 
         ...(env.VITE_DEV_PROXY
           ? {

@@ -1,3 +1,4 @@
+import { FollowAPIError } from "@follow-app/client-sdk"
 import { Provider } from "jotai"
 import * as React from "react"
 import { act } from "react"
@@ -9,12 +10,25 @@ import { jotaiStore } from "~/lib/jotai"
 
 import { AISummaryCardBase } from "./AISummaryCardBase"
 
-const { markdownMock } = vi.hoisted(() => ({
+const { byokSettingsMock, markdownMock, paymentEnabledMock } = vi.hoisted(() => ({
+  byokSettingsMock: {
+    value: {
+      enabled: false,
+      providers: [] as { provider: "zenmux"; apiKey: string }[],
+    },
+  },
   markdownMock: vi.fn(() => null),
+  paymentEnabledMock: {
+    value: false,
+  },
 }))
 
 vi.mock("~/atoms/server-configs", () => ({
-  useIsPaymentEnabled: vi.fn(() => false),
+  useIsPaymentEnabled: vi.fn(() => paymentEnabledMock.value),
+}))
+
+vi.mock("~/atoms/settings/ai", () => ({
+  useAISettingKey: vi.fn(() => byokSettingsMock.value),
 }))
 
 vi.mock("~/atoms/settings/spotlight", () => ({
@@ -87,6 +101,11 @@ describe("AISummaryCardBase spotlight", () => {
     container?.remove()
     root = null
     container = null
+    byokSettingsMock.value = {
+      enabled: false,
+      providers: [],
+    }
+    paymentEnabledMock.value = false
     vi.clearAllMocks()
   })
 
@@ -104,5 +123,33 @@ describe("AISummaryCardBase spotlight", () => {
       }),
       undefined,
     )
+  })
+
+  test("shows the upgrade prompt for remote 402 summary errors", async () => {
+    paymentEnabledMock.value = true
+    ;({ container, root } = await renderSummary(
+      <AISummaryCardBase error={new FollowAPIError("Payment required", 402)} />,
+    ))
+
+    expect(container.textContent).toContain("ai.summary_upgrade_required_title")
+  })
+
+  test("treats BYOK as Pro-equivalent for 402 summary errors", async () => {
+    paymentEnabledMock.value = true
+    byokSettingsMock.value = {
+      enabled: true,
+      providers: [
+        {
+          provider: "zenmux",
+          apiKey: "sk-test",
+        },
+      ],
+    }
+    ;({ container, root } = await renderSummary(
+      <AISummaryCardBase error={new FollowAPIError("Payment required", 402)} />,
+    ))
+
+    expect(container.textContent).not.toContain("ai.summary_upgrade_required_title")
+    expect(container.textContent).toContain("ai.summary_not_available")
   })
 })

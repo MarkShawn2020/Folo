@@ -7,6 +7,8 @@ import { useEntryIsInReadabilitySuccess } from "~/atoms/readability"
 import { useActionLanguage } from "~/atoms/settings/general"
 import { AISummaryCardBase } from "~/components/ui/ai-summary-card"
 
+import { useByokSummaryGenerator } from "../../hooks/useByokSummaryGenerator"
+
 interface EntrySummaryCardProps {
   entryId: string
   className?: string
@@ -16,10 +18,13 @@ export const EntrySummaryCard: React.FC<EntrySummaryCardProps> = ({ entryId, cla
   const { t } = useTranslation("ai")
   const actionLanguage = useActionLanguage()
   const isInReadabilitySuccess = useEntryIsInReadabilitySuccess(entryId)
+  const { summaryGenerator, summaryGeneratorKey } = useByokSummaryGenerator()
   const summary = usePrefetchSummary({
     entryId,
     target: isInReadabilitySuccess ? "readabilityContent" : "content",
     actionLanguage,
+    summaryGenerator,
+    summaryGeneratorKey,
     enabled: true,
   })
 

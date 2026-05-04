@@ -112,7 +112,8 @@ export const createDefaultSettings = (): WebAISettings => ({
   ...defaultAISettings,
   shortcuts: normalizeShortcuts(defaultAISettings.shortcuts),
   panelStyle: AIChatPanelStyle.Floating,
-  showSplineButton: true,
+  // The Spline indicator keeps a WebGL render loop alive, so keep it opt-in.
+  showSplineButton: false,
 })
 
 export const {

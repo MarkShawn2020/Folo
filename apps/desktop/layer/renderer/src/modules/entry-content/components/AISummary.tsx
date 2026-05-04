@@ -12,6 +12,7 @@ import {
 } from "~/atoms/settings/ai"
 import { useActionLanguage } from "~/atoms/settings/general"
 import { AISummaryCardBase } from "~/components/ui/ai-summary-card"
+import { useByokSummaryGenerator } from "~/modules/ai-chat/hooks/useByokSummaryGenerator"
 
 export function AISummary({ entryId }: { entryId: string }) {
   const { t } = useTranslation()
@@ -20,6 +21,7 @@ export function AISummary({ entryId }: { entryId: string }) {
   const showAISummary = useShowAISummary(summarySetting)
 
   const actionLanguage = useActionLanguage()
+  const { summaryGenerator, summaryGeneratorKey } = useByokSummaryGenerator()
 
   // AI Chat panel state
   const aiChatPanelStyle = useAIChatPanelStyle()
@@ -29,6 +31,8 @@ export function AISummary({ entryId }: { entryId: string }) {
     actionLanguage,
     entryId,
     target: isInReadabilitySuccess ? "readabilityContent" : "content",
+    summaryGenerator,
+    summaryGeneratorKey,
     enabled: showAISummary,
   })
 

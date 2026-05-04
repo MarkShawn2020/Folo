@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
       - mobile-main
 
 permissions:
@@ -86,19 +87,19 @@ jobs:
         run: node .github/scripts/resolve-mobile-release-config.mjs
 
       - name: Checkout repository
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev')
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Configure Git
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev')
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Resolve desktop build version
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev')
         id: desktop_release_mode
         env:
           RELEASE_VERSION: ${{ needs.create_tag.outputs.version }}
@@ -107,7 +108,7 @@ jobs:
 
       - name: Resolve desktop build version
         id: desktop_build_version
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main' && steps.desktop_release_mode.outputs.triggerStoreBuilds == 'true'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev') && steps.desktop_release_mode.outputs.triggerStoreBuilds == 'true'
         run: |
           git fetch --tags --force
           latest_tag="$(git tag -l 'desktop-build/v*' --sort=-v:refname | head -n 1)"
@@ -131,7 +132,7 @@ jobs:
           echo "Desktop build version: ${next_build}"
 
       - name: Trigger Desktop Tag Version Build
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main' && steps.desktop_release_mode.outputs.triggerDirectBuild == 'true'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev') && steps.desktop_release_mode.outputs.triggerDirectBuild == 'true'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -140,7 +141,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'build-desktop.yml',
-              ref: 'main',
+              ref: '${{ needs.create_tag.outputs.ref_name }}',
               inputs: {
                 tag_version: 'true',
                 store: 'false'
@@ -149,7 +150,7 @@ jobs:
             console.log('Desktop Tag Version build triggered successfully');
 
       - name: Trigger Desktop Store Build
-        if: needs.create_tag.outputs.platform == 'desktop' && needs.create_tag.outputs.ref_name == 'main' && steps.desktop_release_mode.outputs.triggerStoreBuilds == 'true'
+        if: needs.create_tag.outputs.platform == 'desktop' && (needs.create_tag.outputs.ref_name == 'main' || needs.create_tag.outputs.ref_name == 'dev') && steps.desktop_release_mode.outputs.triggerStoreBuilds == 'true'
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -158,7 +159,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'build-desktop.yml',
-              ref: 'main',
+              ref: '${{ needs.create_tag.outputs.ref_name }}',
               inputs: {
                 tag_version: 'false',
                 store: 'true',

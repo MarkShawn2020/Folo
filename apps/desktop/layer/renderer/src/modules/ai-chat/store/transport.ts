@@ -1,9 +1,14 @@
 import { env } from "@follow/shared/env.desktop"
-import type { HttpChatTransportInitOptions, UIMessageChunk } from "ai"
+import type { UserByokProviderRequestConfig } from "@follow/shared/settings/byok"
+import { createByokRequestPayload, getByokProviderDefaultModel } from "@follow/shared/settings/byok"
+import type { ChatTransport, HttpChatTransportInitOptions, UIMessageChunk } from "ai"
 import { HttpChatTransport, parseJsonEventStream, uiMessageChunkSchema } from "ai"
+
+import { getAISettings } from "~/atoms/settings/ai"
 
 import { getAIModelState } from "../atoms/session"
 import { AIPersistService } from "../services"
+import { ByokChatTransport } from "./byok-transport"
 import type { BizUIMessage } from "./types"
 
 type TitleHandlerPersistOption = boolean | ((title: string) => void | Promise<void>)
@@ -40,12 +45,91 @@ export function createChatTitleHandler(
   }
 }
 
+const OPENAI_MODEL_PREFIX = "openai/"
+
+export const selectByokProvider = (
+  providers: UserByokProviderRequestConfig[],
+  selectedModel?: string | null,
+) => {
+  const openAICompatibleProviders = providers.filter((provider) => !!provider.baseURL)
+  if (openAICompatibleProviders.length === 0) {
+    return null
+  }
+
+  if (selectedModel && selectedModel !== "auto") {
+    const selectedModelProvider = selectedModel.split("/")[0]
+    const matchingProvider = openAICompatibleProviders.find(
+      (provider) => provider.provider === selectedModelProvider,
+    )
+    if (matchingProvider) {
+      return matchingProvider
+    }
+  }
+
+  return (
+    openAICompatibleProviders.find((provider) => provider.provider === "zenmux") ??
+    openAICompatibleProviders[0] ??
+    null
+  )
+}
+
+export const resolveByokModel = (
+  provider: UserByokProviderRequestConfig,
+  selectedModel?: string | null,
+) => {
+  const defaultModel = getByokProviderDefaultModel(provider.provider)
+  const providerModelPrefix = `${provider.provider}/`
+
+  if (selectedModel?.startsWith(providerModelPrefix)) {
+    return selectedModel.slice(providerModelPrefix.length)
+  }
+
+  if (provider.model) {
+    return provider.model
+  }
+
+  if (!selectedModel || selectedModel === "auto") {
+    return defaultModel ?? "gpt-5-mini"
+  }
+
+  if (provider.provider === "openai") {
+    return selectedModel.startsWith(OPENAI_MODEL_PREFIX)
+      ? selectedModel.slice(OPENAI_MODEL_PREFIX.length)
+      : (defaultModel ?? selectedModel)
+  }
+
+  return selectedModel
+}
+
 /**
  * Create a chat transport for AI SDK
  * This is used by the AbstractChat instance to communicate with AI providers
  */
-export function createChatTransport({ onValue, titleHandler }: CreateChatTransportOptions = {}) {
-  return new ExtendChatTransport({
+export function createChatTransport(options: CreateChatTransportOptions = {}) {
+  return new DynamicChatTransport(options)
+}
+
+const createActiveChatTransport = ({ onValue, titleHandler }: CreateChatTransportOptions) => {
+  const modelState = getAIModelState()
+  const { selectedModel } = modelState
+  const aiSettings = getAISettings()
+  const byok = createByokRequestPayload(aiSettings.byok)
+  const byokProvider = byok ? selectByokProvider(byok.providers, selectedModel) : null
+
+  if (byokProvider) {
+    return new ByokChatTransport({
+      provider: byokProvider,
+      model: resolveByokModel(byokProvider, selectedModel),
+      systemPrompt: aiSettings.personalizePrompt,
+      onValue,
+    })
+  }
+
+  return createRemoteChatTransport({ onValue, titleHandler })
+}
+
+const createRemoteChatTransport = ({ onValue, titleHandler }: CreateChatTransportOptions) =>
+  new ExtendChatTransport({
     onValue,
     titleHandler,
     // Custom fetch configuration
@@ -55,11 +139,14 @@ export function createChatTransport({ onValue, titleHandler }: CreateChatTranspo
     body: () => {
       const modelState = getAIModelState()
       const { selectedModel } = modelState
+      const byok = createByokRequestPayload(getAISettings().byok)
 
-      return selectedModel ? { model: selectedModel } : {}
+      return {
+        ...(selectedModel ? { model: selectedModel } : {}),
+        ...(byok ? { byok } : {}),
+      }
     },
   })
-}
 
 type UIMessageChunkParseResult =
   ReturnType<typeof parseJsonEventStream<UIMessageChunk>> extends ReadableStream<infer T>
@@ -86,6 +173,18 @@ const coerceFinishChunk = (chunk: UIMessageChunkParseResult): UIMessageChunk | n
     finishReason: typeof finishReason === "string" ? finishReason : undefined,
     messageMetadata,
   } as UIMessageChunk
+}
+
+class DynamicChatTransport implements ChatTransport<BizUIMessage> {
+  constructor(private options: CreateChatTransportOptions) {}
+
+  sendMessages(options: Parameters<ChatTransport<BizUIMessage>["sendMessages"]>[0]) {
+    return createActiveChatTransport(this.options).sendMessages(options)
+  }
+
+  reconnectToStream(options: Parameters<ChatTransport<BizUIMessage>["reconnectToStream"]>[0]) {
+    return createRemoteChatTransport(this.options).reconnectToStream(options)
+  }
 }
 
 class ExtendChatTransport extends HttpChatTransport<BizUIMessage> {

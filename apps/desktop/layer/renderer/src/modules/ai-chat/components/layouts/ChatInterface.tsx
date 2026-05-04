@@ -5,6 +5,7 @@ import {
   getEditorStateJSONString,
 } from "@follow/components/ui/lexical-rich-editor/utils.js"
 import { isFreeRole } from "@follow/constants"
+import { createByokRequestPayload } from "@follow/shared/settings/byok"
 import { getCategoryFeedIds } from "@follow/store/subscription/getter"
 import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { useUserRole } from "@follow/store/user/hooks"
@@ -40,6 +41,7 @@ import {
 import { LexicalAIEditorNodes } from "../../editor"
 import { useAIConfiguration } from "../../hooks/useAIConfiguration"
 import { useAttachScrollBeyond } from "../../hooks/useAttachScrollBeyond"
+import { useByokSummaryGenerator } from "../../hooks/useByokSummaryGenerator"
 import { AIPanelRefsContext } from "../../store/AIChatContext"
 import type { AIChatContextBlock, BizUIMessage, SendingUIMessage } from "../../store/types"
 import { computeIsRateLimited, computeRateLimitMessage } from "../../utils/rate-limit"
@@ -73,11 +75,14 @@ const ChatInterfaceContent = ({ centerInputOnEmpty, visualOffsetY }: ChatInterfa
   const currentChatId = useCurrentChatId()
   const mainEntryId = useMainEntryId()
   const actionLanguage = useActionLanguage()
+  const { summaryGenerator, summaryGeneratorKey } = useByokSummaryGenerator()
 
   usePrefetchSummary({
     entryId: mainEntryId || "",
     target: "content",
     actionLanguage,
+    summaryGenerator,
+    summaryGeneratorKey,
     enabled: !!mainEntryId && !hasMessages,
   })
 
@@ -108,6 +113,11 @@ const ChatInterfaceContent = ({ centerInputOnEmpty, visualOffsetY }: ChatInterfa
   })
 
   const autoScrollWhenStreaming = useAISettingKey("autoScrollWhenStreaming")
+  const byokSettings = useAISettingKey("byok")
+  const isByokActive = useMemo(
+    () => createByokRequestPayload(byokSettings) !== null,
+    [byokSettings],
+  )
 
   const { shouldShowInterruptionNotice, lastUserMessage } = useInterruptionNotice(messages, status)
 
@@ -263,6 +273,7 @@ const ChatInterfaceContent = ({ centerInputOnEmpty, visualOffsetY }: ChatInterfa
     error,
     configuration,
     shouldHideResetDetails,
+    isByokActive,
   )
 
   return (
@@ -395,18 +406,21 @@ const useRateLimitInfo = (
   error: Error | string | undefined,
   configuration: ConfigResponse | undefined,
   shouldHideResetDetails: boolean,
+  isByokActive: boolean,
 ) => {
   const isRateLimited = useMemo(
-    () => computeIsRateLimited(error, configuration),
-    [error, configuration],
+    () => (isByokActive ? false : computeIsRateLimited(error, configuration)),
+    [error, configuration, isByokActive],
   )
 
   const rateLimitMessage = useMemo(
     () =>
-      computeRateLimitMessage(error, configuration, {
-        hideResetDetails: shouldHideResetDetails,
-      }),
-    [error, configuration, shouldHideResetDetails],
+      isByokActive
+        ? null
+        : computeRateLimitMessage(error, configuration, {
+            hideResetDetails: shouldHideResetDetails,
+          }),
+    [error, configuration, shouldHideResetDetails, isByokActive],
   )
 
   return {

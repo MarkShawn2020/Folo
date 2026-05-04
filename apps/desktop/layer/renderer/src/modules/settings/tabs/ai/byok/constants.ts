@@ -1,8 +1,8 @@
-import type { ByokProviderName } from "@follow/shared/settings/interface"
-
-export const PROVIDER_OPTIONS: { value: ByokProviderName; label: string }[] = [
-  { value: "openai", label: "OpenAI" },
-  { value: "google", label: "Google" },
-  { value: "vercel-ai-gateway", label: "Vercel AI Gateway" },
-  { value: "openrouter", label: "OpenRouter" },
-]
+export {
+  BYOK_PROVIDER_DEFAULT_BASE_URLS,
+  BYOK_PROVIDER_DEFAULT_MODELS,
+  BYOK_PROVIDER_LABELS,
+  getByokProviderDefaultBaseURL,
+  getByokProviderDefaultModel,
+  BYOK_PROVIDER_OPTIONS as PROVIDER_OPTIONS,
+} from "@follow/shared/settings/byok"

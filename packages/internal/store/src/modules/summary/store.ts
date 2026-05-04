@@ -8,6 +8,7 @@ import { api } from "../../context"
 import type { Hydratable, Resetable } from "../../lib/base"
 import { createImmerSetter, createTransaction, createZustandStore } from "../../lib/helper"
 import { getEntry } from "../entry/getter"
+import type { EntryModel } from "../entry/types"
 import { SummaryGeneratingStatus } from "./enum"
 import type { StatusID } from "./utils"
 import { getGenerateSummaryStatusId } from "./utils"
@@ -138,22 +139,74 @@ class SummaryActions implements Resetable, Hydratable {
 
 export const summaryActions = new SummaryActions()
 
+export interface SummaryGeneratorContext {
+  entry: EntryModel
+  target: "content" | "readabilityContent"
+  actionLanguage: SupportedActionLanguage
+  abortSignal?: AbortSignal
+  onSummaryUpdate?: (summary: string) => void
+}
+
+export type SummaryGenerator = (context: SummaryGeneratorContext) => Promise<string | null>
+
 class SummarySyncService {
-  private pendingPromises: Record<StatusID, Promise<string>> = {}
+  private pendingPromises: Record<StatusID, Promise<string | null>> = {}
+
+  private upsertSummaryInSession({
+    entryId,
+    actionLanguage,
+    target,
+    summary,
+    status,
+  }: {
+    entryId: string
+    actionLanguage: SupportedActionLanguage
+    target: "content" | "readabilityContent"
+    summary: string
+    status?: SummaryGeneratingStatus
+  }) {
+    immerSet((state) => {
+      if (!state.data[entryId]) {
+        state.data[entryId] = {}
+      }
+
+      state.data[entryId][actionLanguage] = {
+        summary:
+          target === "content" ? summary : state.data[entryId]?.[actionLanguage]?.summary || "",
+        readabilitySummary:
+          target === "readabilityContent"
+            ? summary
+            : state.data[entryId]?.[actionLanguage]?.readabilitySummary || null,
+        lastAccessed: Date.now(),
+      }
+
+      if (status) {
+        state.generatingStatus[getGenerateSummaryStatusId(entryId, actionLanguage, target)] = status
+      }
+    })
+  }
 
   async generateSummary({
     entryId,
     target,
     actionLanguage,
+    generator,
+    abortSignal,
   }: {
     entryId: string
     target: "content" | "readabilityContent"
     actionLanguage: SupportedActionLanguage
+    generator?: SummaryGenerator
+    abortSignal?: AbortSignal
   }): Promise<string | null> {
     const entry = getEntry(entryId)
     if (!entry) return null
 
+    const statusID = getGenerateSummaryStatusId(entryId, actionLanguage, target)
     const state = get()
+    if (state.generatingStatus[statusID] === SummaryGeneratingStatus.Pending)
+      return this.pendingPromises[statusID] || null
+
     const existing =
       state.data[entryId]?.[actionLanguage]?.[
         target === "content" ? "summary" : "readabilitySummary"
@@ -162,46 +215,66 @@ class SummarySyncService {
       return existing
     }
 
-    const statusID = getGenerateSummaryStatusId(entryId, actionLanguage, target)
-    if (state.generatingStatus[statusID] === SummaryGeneratingStatus.Pending)
-      return this.pendingPromises[statusID] || null
-
     immerSet((state) => {
       state.generatingStatus[statusID] = SummaryGeneratingStatus.Pending
     })
 
-    // Use Our AI to generate summary
-    const pendingPromise = api()
-      .ai.summary({
+    const handleSummaryUpdate = (summary: string) => {
+      if (!summary) {
+        return
+      }
+
+      this.upsertSummaryInSession({
+        entryId,
+        actionLanguage,
+        target,
+        summary,
+        status: SummaryGeneratingStatus.Pending,
+      })
+    }
+
+    const pendingPromise = (async () => {
+      if (generator) {
+        return generator({
+          entry,
+          target,
+          actionLanguage,
+          abortSignal,
+          onSummaryUpdate: handleSummaryUpdate,
+        })
+      }
+
+      // Use Our AI to generate summary
+      const summary = await api().ai.summary({
         id: entryId,
         language: toApiSupportedActionLanguage(actionLanguage),
         target,
       })
+
+      if (!summary.data) {
+        throw new FollowAPIError("AI summary limit exceeded. Please try again later.", 402)
+      }
+
+      return summary.data
+    })()
       .then((summary) => {
-        if (!summary.data) {
-          throw new FollowAPIError("AI summary limit exceeded. Please try again later.", 402)
+        if (!summary) {
+          immerSet((state) => {
+            state.generatingStatus[statusID] = SummaryGeneratingStatus.Success
+          })
+
+          return null
         }
 
-        immerSet((state) => {
-          if (!state.data[entryId]) {
-            state.data[entryId] = {}
-          }
-
-          state.data[entryId][actionLanguage] = {
-            summary:
-              target === "content"
-                ? summary.data || ""
-                : state.data[entryId]?.[actionLanguage]?.summary || "",
-            readabilitySummary:
-              target === "readabilityContent"
-                ? summary.data || ""
-                : state.data[entryId]?.[actionLanguage]?.readabilitySummary || null,
-            lastAccessed: Date.now(),
-          }
-          state.generatingStatus[statusID] = SummaryGeneratingStatus.Success
+        this.upsertSummaryInSession({
+          entryId,
+          actionLanguage,
+          target,
+          summary,
+          status: SummaryGeneratingStatus.Success,
         })
 
-        return summary.data || ""
+        return summary
       })
       .catch((error) => {
         immerSet((state) => {

@@ -38,6 +38,14 @@ interface Sender extends Electron.WebContents {
   getOwnerBrowserWindow: () => Electron.BrowserWindow | null
 }
 
+interface ZenMuxModelsResponse {
+  data?: unknown[]
+  object?: string
+  [key: string]: unknown
+}
+
+const ZENMUX_MODELS_URL = "https://zenmux.ai/api/v1/models"
+
 const ensurePdfExtension = (filePath: string) => {
   return path.extname(filePath).toLowerCase() === ".pdf" ? filePath : `${filePath}.pdf`
 }
@@ -131,6 +139,16 @@ export class AppService extends IpcService {
   @IpcMethod()
   readClipboard(_context: IpcContext): string {
     return clipboard.readText()
+  }
+
+  @IpcMethod()
+  async getZenMuxModels(_context: IpcContext): Promise<ZenMuxModelsResponse> {
+    const response = await fetch(ZENMUX_MODELS_URL)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ZenMux models (${response.status})`)
+    }
+
+    return response.json() as Promise<ZenMuxModelsResponse>
   }
 
   @IpcMethod()
