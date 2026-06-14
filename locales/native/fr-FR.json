@@ -55,6 +55,7 @@
   "menu.quitAndInstallUpdate": "Debug : Quitter et installer la mise à jour",
   "menu.redo": "Rétablir",
   "menu.reload": "Recharger",
+  "menu.restart": "Redémarrer {{name}}",
   "menu.search": "Rechercher",
   "menu.selectAll": "Tout sélectionner",
   "menu.services": "Services",

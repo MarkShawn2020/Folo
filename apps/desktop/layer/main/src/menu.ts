@@ -3,7 +3,7 @@ import { DEV } from "@follow/shared/constants"
 import { dispatchEventOnWindow } from "@follow/shared/event"
 import { name } from "@pkg"
 import type { BrowserWindow, MenuItem, MenuItemConstructorOptions } from "electron"
-import { Menu } from "electron"
+import { app, Menu } from "electron"
 
 import { isMacOS, isMAS } from "./env"
 import { clearAllDataAndConfirm } from "./lib/cleaner"
@@ -41,6 +41,13 @@ export const registerAppMenu = () => {
               {
                 label: t("menu.clearAllData"),
                 click: clearAllDataAndConfirm,
+              },
+              {
+                label: t("menu.restart", { name }),
+                click: () => {
+                  app.relaunch()
+                  app.quit()
+                },
               },
               { role: "quit", label: t("menu.quit", { name }) },
             ],

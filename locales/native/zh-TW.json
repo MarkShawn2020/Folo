@@ -55,6 +55,7 @@
   "menu.quitAndInstallUpdate": "除錯：結束並安裝更新",
   "menu.redo": "重做",
   "menu.reload": "重新載入",
+  "menu.restart": "重新啟動 {{name}}",
   "menu.search": "搜尋",
   "menu.selectAll": "全選",
   "menu.services": "服務",
