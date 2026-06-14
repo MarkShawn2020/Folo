@@ -25,7 +25,6 @@ import { setTranslationCache } from "~/modules/entry-content/atoms"
 
 export const TranslationSettingButton = () => {
   const { t } = useTranslation()
-  const { t: tSettings } = useTranslation("settings")
 
   const enabled = useGeneralSettingKey("translation")
   const actionLanguage = useGeneralSettingKey("actionLanguage")
@@ -75,13 +74,9 @@ export const TranslationSettingButton = () => {
 
         <Divider className="opacity-60" />
 
-        <div
-          className={cn(
-            "flex flex-col gap-4 px-4 pb-4 pt-3 transition-opacity duration-200",
-            !enabled && "pointer-events-none select-none opacity-40",
-          )}
-          aria-hidden={!enabled}
-        >
+        {/* Always interactive — users can pre-configure language/mode even while
+            translation is toggled off. */}
+        <div className="flex flex-col gap-4 px-4 pb-4 pt-3">
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">
               {t("entry_list_header.translation.target_language")}
@@ -89,7 +84,6 @@ export const TranslationSettingButton = () => {
             <ResponsiveSelect
               size="sm"
               triggerClassName="w-full"
-              disabled={!enabled}
               value={actionLanguage}
               onValueChange={(value) => {
                 setGeneralSetting("actionLanguage", value)
@@ -97,7 +91,7 @@ export const TranslationSettingButton = () => {
               }}
               items={[
                 {
-                  label: tSettings("general.action_language.default"),
+                  label: t("entry_list_header.translation.default_language"),
                   value: DEFAULT_ACTION_LANGUAGE,
                 },
                 ...Object.values(ACTION_LANGUAGE_MAP).map((item) => ({
@@ -110,23 +104,23 @@ export const TranslationSettingButton = () => {
 
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">
-              {tSettings("general.translation_mode.label")}
+              {t("entry_list_header.translation.mode")}
             </span>
             <ResponsiveSelect
               size="sm"
               triggerClassName="w-full"
-              disabled={!enabled || modeDisabledForRole}
+              disabled={modeDisabledForRole}
               value={translationMode}
               onValueChange={(value) => {
                 setGeneralSetting("translationMode", value as "bilingual" | "translation-only")
               }}
               items={[
                 {
-                  label: tSettings("general.translation_mode.bilingual"),
+                  label: t("entry_list_header.translation.bilingual"),
                   value: "bilingual",
                 },
                 {
-                  label: tSettings("general.translation_mode.translation-only"),
+                  label: t("entry_list_header.translation.translation_only"),
                   value: "translation-only",
                 },
               ]}
