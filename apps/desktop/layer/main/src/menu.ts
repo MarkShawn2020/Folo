@@ -1,3 +1,4 @@
+import { is } from "@electron-toolkit/utils"
 import { callWindowExpose } from "@follow/shared/bridge"
 import { DEV } from "@follow/shared/constants"
 import { dispatchEventOnWindow } from "@follow/shared/event"
@@ -45,6 +46,15 @@ export const registerAppMenu = () => {
               {
                 label: t("menu.restart", { name }),
                 click: () => {
+                  // In electron-vite dev, the renderer is served by a Vite dev
+                  // server owned by the parent CLI process. app.relaunch() would
+                  // respawn Electron after the dev server is torn down on quit,
+                  // leaving the relaunched window pointing at an unreachable URL
+                  // (blank page). Reload the renderer instead of relaunching.
+                  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
+                    WindowManager.getMainWindow()?.webContents.reload()
+                    return
+                  }
                   app.relaunch()
                   app.quit()
                 },
