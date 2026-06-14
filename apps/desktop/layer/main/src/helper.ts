@@ -12,6 +12,8 @@ const iconMap = {
   [ModeEnum.staging]: path.join(__dirname, "../../resources/icon-staging.png"),
 }
 export const getIconPath = () => iconMap[MODE]
+// The dock should always show the standard icon, even in dev/staging.
+export const getStandardIconPath = () => iconMap[ModeEnum.production]
 export const getTrayIconPath = () => {
   if (isMacOS) {
     return path.join(__dirname, "../../resources/icon-tray.png")
