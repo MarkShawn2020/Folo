@@ -1,3 +1,4 @@
+import { is } from "@electron-toolkit/utils"
 import { callWindowExpose } from "@follow/shared/bridge"
 import { DEV } from "@follow/shared/constants"
 import { dispatchEventOnWindow } from "@follow/shared/event"
@@ -45,6 +46,16 @@ export const registerAppMenu = () => {
               {
                 label: t("menu.restart", { name }),
                 click: () => {
+                  // In electron-vite dev, app.relaunch() can't come back: the CLI
+                  // process.exit()s the renderer dev server when Electron closes,
+                  // so the relaunched window loads a dead URL (blank page).
+                  // The custom dev runner (scripts/dev-electron.ts) watches for
+                  // this exit code and respawns Electron while keeping the dev
+                  // server alive. Keep the code in sync with that script.
+                  if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
+                    app.exit(77)
+                    return
+                  }
                   app.relaunch()
                   app.quit()
                 },

@@ -27,7 +27,7 @@
     "depcheck": "npx depcheck --quiet",
     "dev": "turbo run @follow/web#dev @follow/ssr#dev",
     "dev:debug": "export DEBUG=true && vite --debug",
-    "dev:electron": "tsx scripts/patch-dev-app-name.ts && electron-vite dev",
+    "dev:electron": "tsx scripts/patch-dev-app-name.ts && tsx scripts/dev-electron.ts",
     "dev:server": "pnpm run --filter=ssr dev",
     "dev:web": "cross-env WEB_BUILD=1 vite",
     "e2e": "playwright test -c e2e/playwright.config.ts",
