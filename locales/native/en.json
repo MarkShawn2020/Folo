@@ -55,6 +55,7 @@
   "menu.quitAndInstallUpdate": "Debug: Quit and Install Update",
   "menu.redo": "Redo",
   "menu.reload": "Reload",
+  "menu.restart": "Restart {{name}}",
   "menu.search": "Search",
   "menu.selectAll": "Select All",
   "menu.services": "Services",

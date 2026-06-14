@@ -55,6 +55,7 @@
   "menu.quitAndInstallUpdate": "调试：退出并安装更新",
   "menu.redo": "重做",
   "menu.reload": "重新加载",
+  "menu.restart": "重启 {{name}}",
   "menu.search": "搜索",
   "menu.selectAll": "全选",
   "menu.services": "服务",
