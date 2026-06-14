@@ -68,6 +68,14 @@ const parseTokenFromDeepLinkPath = (path: string): string | null => {
   }
 }
 
+const LOGIN_APP_PROTOCOL_KEY = "app_protocol"
+const ALLOWED_LOGIN_APP_PROTOCOLS = new Set(["folo", "folo-dev", "follow", "follow-dev"])
+
+const parseLoginAppScheme = (search: string): `${string}://` => {
+  const protocol = new URLSearchParams(search).get(LOGIN_APP_PROTOCOL_KEY)
+  return protocol && ALLOWED_LOGIN_APP_PROTOCOLS.has(protocol) ? `${protocol}://` : DEEPLINK_SCHEME
+}
+
 export function Login() {
   const { status, refetch } = useSession()
 
@@ -80,6 +88,7 @@ export function Login() {
   const provider = urlParams.get("provider")
   const isCredentialProvider = provider === "credential"
   const cliCallbackUrl = useMemo(() => parseCliCallbackUrl(location.search), [location.search])
+  const appScheme = useMemo(() => parseLoginAppScheme(location.search), [location.search])
 
   const isAuthenticated = status === "authenticated"
 
@@ -117,7 +126,7 @@ export function Login() {
 
   const [openFailed, setOpenFailed] = useState(false)
   const [callbackUrl, setCallbackUrl] = useState<string>()
-  const callbackUrlWithScheme = callbackUrl ? `${DEEPLINK_SCHEME}${callbackUrl}` : undefined
+  const callbackUrlWithScheme = callbackUrl ? `${appScheme}${callbackUrl}` : undefined
 
   const [lastMethod, setLastMethod] = useState<string | null>(null)
   useEffect(() => {
@@ -136,11 +145,12 @@ export function Login() {
     setCallbackUrl(callbackUrl.url)
     openInFollowApp({
       deeplink: callbackUrl.url,
+      scheme: appScheme,
       fallback: () => {
         setOpenFailed(true)
       },
     })
-  }, [getCallbackUrl])
+  }, [appScheme, getCallbackUrl])
 
   const handleCliCallback = useCallback(async () => {
     if (!cliCallbackUrl) {
@@ -314,7 +324,7 @@ export function Login() {
     isEmail,
     navigate,
     openFailed,
-    callbackUrl,
+    callbackUrlWithScheme,
     isDark,
     lastMethod,
   ])

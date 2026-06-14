@@ -191,7 +191,7 @@ export const LoginModalContent = (props: LoginModalContentProps) => {
                     if (key === "credential") {
                       setIsEmail(true)
                     } else {
-                      loginHandler(key, "app")
+                      loginHandler(key, runtime)
                     }
                   }}
                   className="group center relative w-full gap-2 rounded-xl border border-border bg-material-medium py-3.5 pl-5 font-medium backdrop-blur-sm transition-colors duration-200 hover:border-folo/30 hover:bg-folo/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-2"
