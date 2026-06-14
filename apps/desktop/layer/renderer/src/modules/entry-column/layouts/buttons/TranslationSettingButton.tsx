@@ -1,0 +1,139 @@
+import { ActionButton } from "@follow/components/ui/button/index.js"
+import { Divider } from "@follow/components/ui/divider/index.js"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@follow/components/ui/popover/index.js"
+import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
+import { Switch } from "@follow/components/ui/switch/index.js"
+import { UserRole } from "@follow/constants"
+import { ACTION_LANGUAGE_MAP } from "@follow/shared"
+import { useUserRole } from "@follow/store/user/hooks"
+import { cn } from "@follow/utils/utils"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+
+import {
+  DEFAULT_ACTION_LANGUAGE,
+  setGeneralSetting,
+  useGeneralSettingKey,
+} from "~/atoms/settings/general"
+import { useIsPaymentEnabled } from "~/atoms/server-configs"
+import { defaultResources } from "~/@types/default-resource"
+import { setTranslationCache } from "~/modules/entry-content/atoms"
+
+export const TranslationSettingButton = () => {
+  const { t } = useTranslation()
+  const { t: tSettings } = useTranslation("settings")
+
+  const enabled = useGeneralSettingKey("translation")
+  const actionLanguage = useGeneralSettingKey("actionLanguage")
+  const translationMode = useGeneralSettingKey("translationMode")
+
+  const role = useUserRole()
+  const isPaymentEnabled = useIsPaymentEnabled()
+  const modeDisabledForRole = role === UserRole.Free && isPaymentEnabled
+
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ActionButton
+          tooltip={t("entry_list_header.translation.label")}
+          active={enabled}
+          className="relative"
+        >
+          <i
+            className={cn(
+              "i-mgc-translate-2-ai-cute-re",
+              enabled && "text-accent",
+            )}
+          />
+          {enabled && (
+            <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent shadow-[0_0_0_2px_theme(colors.background)]" />
+          )}
+        </ActionButton>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" className="w-72 p-0">
+        <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+          <div className="flex min-w-0 flex-col">
+            <span className="text-sm font-semibold leading-tight text-text">
+              {t("entry_list_header.translation.label")}
+            </span>
+            <span className="mt-0.5 truncate text-xs text-text-secondary">
+              {t("entry_list_header.translation.description")}
+            </span>
+          </div>
+          <Switch
+            checked={enabled}
+            onCheckedChange={(checked) => setGeneralSetting("translation", checked)}
+          />
+        </div>
+
+        <Divider className="opacity-60" />
+
+        <div
+          className={cn(
+            "flex flex-col gap-4 px-4 pb-4 pt-3 transition-opacity duration-200",
+            !enabled && "pointer-events-none select-none opacity-40",
+          )}
+          aria-hidden={!enabled}
+        >
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-secondary">
+              {t("entry_list_header.translation.target_language")}
+            </span>
+            <ResponsiveSelect
+              size="sm"
+              triggerClassName="w-full"
+              disabled={!enabled}
+              value={actionLanguage}
+              onValueChange={(value) => {
+                setGeneralSetting("actionLanguage", value)
+                setTranslationCache({})
+              }}
+              items={[
+                {
+                  label: tSettings("general.action_language.default"),
+                  value: DEFAULT_ACTION_LANGUAGE,
+                },
+                ...Object.values(ACTION_LANGUAGE_MAP).map((item) => ({
+                  label: defaultResources[item.value]?.lang.name ?? item.label,
+                  value: item.value,
+                })),
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-secondary">
+              {tSettings("general.translation_mode.label")}
+            </span>
+            <ResponsiveSelect
+              size="sm"
+              triggerClassName="w-full"
+              disabled={!enabled || modeDisabledForRole}
+              value={translationMode}
+              onValueChange={(value) => {
+                setGeneralSetting("translationMode", value as "bilingual" | "translation-only")
+              }}
+              items={[
+                {
+                  label: tSettings("general.translation_mode.bilingual"),
+                  value: "bilingual",
+                },
+                {
+                  label: tSettings("general.translation_mode.translation-only"),
+                  value: "translation-only",
+                },
+              ]}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}

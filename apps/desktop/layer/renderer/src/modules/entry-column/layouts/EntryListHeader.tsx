@@ -39,6 +39,7 @@ import { useIsPreviewFeed } from "../hooks/useIsPreviewFeed"
 import { useEntryRootState } from "../store/EntryColumnContext"
 import { AppendTaildingDivider } from "./AppendTaildingDivider"
 import { SwitchToMasonryButton } from "./buttons/SwitchToMasonryButton"
+import { TranslationSettingButton } from "./buttons/TranslationSettingButton"
 
 export const EntryListHeader: FC<{
   refetch: () => void
@@ -203,6 +204,7 @@ export const EntryListHeader: FC<{
                   <RotatingRefreshIcon isRefreshing={isRefreshing} />
                 </ActionButton>
               ))}
+            <TranslationSettingButton />
             {!isCollection && (
               <>
                 <ActionButton
