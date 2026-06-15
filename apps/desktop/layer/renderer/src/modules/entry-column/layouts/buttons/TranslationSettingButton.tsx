@@ -5,7 +5,6 @@ import {
   PopoverTrigger,
 } from "@follow/components/ui/popover/index.js"
 import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
-import { Switch } from "@follow/components/ui/switch/index.js"
 import { ACTION_LANGUAGE_MAP } from "@follow/shared"
 import { cn } from "@follow/utils/utils"
 import { useState } from "react"
@@ -58,10 +57,26 @@ export const TranslationSettingButton = () => {
               {t("entry_list_header.translation.description")}
             </span>
           </div>
-          <Switch
-            checked={enabled}
-            onCheckedChange={(checked) => setGeneralSetting("translation", checked)}
-          />
+          {/* Plain button toggle (no framer-motion) — avoids the headlessui
+              Switch's tap-gesture conflict inside Radix Popover's layer. */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={t("entry_list_header.translation.label")}
+            onClick={() => setGeneralSetting("translation", !enabled)}
+            className={cn(
+              "relative inline-flex h-6 w-10 shrink-0 cursor-switch items-center rounded-full transition-colors duration-200",
+              enabled ? "bg-accent" : "bg-fill",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block size-[18px] rounded-full bg-background shadow-lg transition-transform duration-200",
+                enabled ? "translate-x-[19px]" : "translate-x-[3px]",
+              )}
+            />
+          </button>
         </div>
 
         <Divider className="opacity-60" />
