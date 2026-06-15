@@ -1,4 +1,3 @@
-import { ActionButton } from "@follow/components/ui/button/index.js"
 import { Divider } from "@follow/components/ui/divider/index.js"
 import {
   Popover,
@@ -32,21 +31,21 @@ export const TranslationSettingButton = () => {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ActionButton
-          tooltip={t("entry_list_header.translation.label")}
-          active={enabled}
-          className="relative"
+        <button
+          type="button"
+          aria-label={t("entry_list_header.translation.label")}
+          className={cn(
+            "no-drag-region pointer-events-auto relative inline-flex size-8 items-center justify-center rounded-md text-xl duration-200",
+            "hover:bg-theme-item-hover data-[state=open]:bg-theme-item-active",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:ring-offset-2",
+            enabled && "bg-zinc-500/15 hover:bg-zinc-500/20",
+          )}
         >
-          <i
-            className={cn(
-              "i-mgc-translate-2-ai-cute-re",
-              enabled && "text-accent",
-            )}
-          />
+          <i className={cn("i-mgc-translate-2-ai-cute-re", enabled && "text-accent")} />
           {enabled && (
             <span className="absolute right-1 top-1 size-1.5 rounded-full bg-accent shadow-[0_0_0_2px_theme(colors.background)]" />
           )}
-        </ActionButton>
+        </button>
       </PopoverTrigger>
 
       <PopoverContent align="end" className="no-drag-region w-72 p-0">
