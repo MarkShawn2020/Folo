@@ -49,7 +49,7 @@ export const TranslationSettingButton = () => {
         </ActionButton>
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-72 p-0">
+      <PopoverContent align="end" className="no-drag-region w-72 p-0">
         {/* Whole row toggles translation; the Switch is a visual indicator
             (pointer-events-none) so clicking the label/description works too. */}
         <div
