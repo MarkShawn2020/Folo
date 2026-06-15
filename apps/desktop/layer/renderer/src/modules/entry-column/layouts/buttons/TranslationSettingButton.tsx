@@ -50,7 +50,21 @@ export const TranslationSettingButton = () => {
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-72 p-0">
-        <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
+        {/* Whole row toggles translation; the Switch is a visual indicator
+            (pointer-events-none) so clicking the label/description works too. */}
+        <div
+          role="switch"
+          aria-checked={enabled}
+          tabIndex={0}
+          onClick={() => setGeneralSetting("translation", !enabled)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setGeneralSetting("translation", !enabled)
+            }
+          }}
+          className="flex cursor-button items-center justify-between gap-2 px-4 pb-3 pt-4 focus-visible:outline-none"
+        >
           <div className="flex min-w-0 flex-col">
             <span className="text-sm font-semibold leading-tight text-text">
               {t("entry_list_header.translation.label")}
@@ -59,10 +73,7 @@ export const TranslationSettingButton = () => {
               {t("entry_list_header.translation.description")}
             </span>
           </div>
-          <Switch
-            checked={enabled}
-            onCheckedChange={(checked) => setGeneralSetting("translation", checked)}
-          />
+          <Switch checked={enabled} className="pointer-events-none" />
         </div>
 
         <Divider className="opacity-60" />
