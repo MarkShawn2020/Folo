@@ -1,21 +1,17 @@
 import { Divider } from "@follow/components/ui/divider/index.js"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@follow/components/ui/popover/index.js"
+import { Popover, PopoverContent, PopoverTrigger } from "@follow/components/ui/popover/index.js"
 import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
 import { ACTION_LANGUAGE_MAP } from "@follow/shared"
 import { cn } from "@follow/utils/utils"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { defaultResources } from "~/@types/default-resource"
 import {
   DEFAULT_ACTION_LANGUAGE,
   setGeneralSetting,
   useGeneralSettingKey,
 } from "~/atoms/settings/general"
-import { defaultResources } from "~/@types/default-resource"
 import { setTranslationCache } from "~/modules/entry-content/atoms"
 
 export const TranslationSettingButton = () => {
