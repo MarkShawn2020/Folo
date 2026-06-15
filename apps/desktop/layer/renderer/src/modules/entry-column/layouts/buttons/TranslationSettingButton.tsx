@@ -7,9 +7,7 @@ import {
 } from "@follow/components/ui/popover/index.js"
 import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
 import { Switch } from "@follow/components/ui/switch/index.js"
-import { UserRole } from "@follow/constants"
 import { ACTION_LANGUAGE_MAP } from "@follow/shared"
-import { useUserRole } from "@follow/store/user/hooks"
 import { cn } from "@follow/utils/utils"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -19,7 +17,6 @@ import {
   setGeneralSetting,
   useGeneralSettingKey,
 } from "~/atoms/settings/general"
-import { useIsPaymentEnabled } from "~/atoms/server-configs"
 import { defaultResources } from "~/@types/default-resource"
 import { setTranslationCache } from "~/modules/entry-content/atoms"
 
@@ -29,10 +26,6 @@ export const TranslationSettingButton = () => {
   const enabled = useGeneralSettingKey("translation")
   const actionLanguage = useGeneralSettingKey("actionLanguage")
   const translationMode = useGeneralSettingKey("translationMode")
-
-  const role = useUserRole()
-  const isPaymentEnabled = useIsPaymentEnabled()
-  const modeDisabledForRole = role === UserRole.Free && isPaymentEnabled
 
   const [open, setOpen] = useState(false)
 
@@ -109,7 +102,6 @@ export const TranslationSettingButton = () => {
             <ResponsiveSelect
               size="sm"
               triggerClassName="w-full"
-              disabled={modeDisabledForRole}
               value={translationMode}
               onValueChange={(value) => {
                 setGeneralSetting("translationMode", value as "bilingual" | "translation-only")
