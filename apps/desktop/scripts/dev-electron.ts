@@ -18,7 +18,9 @@
  * The renderer requests this via `app.exit(RELAUNCH_EXIT_CODE)` in dev — keep
  * the constant in sync with layer/main/src/menu.ts.
  */
-import { type ChildProcess, spawn } from "node:child_process"
+/* eslint-disable unicorn/no-process-exit -- This file supervises a CLI process. */
+import type { ChildProcess } from "node:child_process"
+import { spawn } from "node:child_process"
 
 import electronPath from "electron"
 import { resolveConfig } from "electron-vite"
@@ -68,11 +70,7 @@ const doBuild = (config: any, watchHook: () => void): Promise<void> =>
 const main = async () => {
   process.env.NODE_ENV_ELECTRON_VITE = "development"
 
-  const { config } = (await resolveConfig(
-    { root: process.cwd() },
-    "serve",
-    "development",
-  )) as any
+  const { config } = (await resolveConfig({ root: process.cwd() }, "serve", "development")) as any
 
   let electron: ChildProcess | undefined
   let viteServer: Awaited<ReturnType<typeof createViteServer>> | undefined

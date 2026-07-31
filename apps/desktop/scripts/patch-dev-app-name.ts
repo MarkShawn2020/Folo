@@ -5,9 +5,10 @@
  * This script patches the binary's Info.plist so the dev menu bar shows the
  * product name instead of "Electron".
  */
+/* eslint-disable unicorn/no-process-exit -- This file runs as a build CLI. */
 import { execFileSync } from "node:child_process"
-import { createRequire } from "node:module"
 import fs from "node:fs"
+import { createRequire } from "node:module"
 
 import path from "pathe"
 
