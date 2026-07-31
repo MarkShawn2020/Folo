@@ -27,11 +27,11 @@ import { useFeature } from "~/hooks/biz/useFeature"
 import { useRouteParams } from "~/hooks/biz/useRouteParams"
 
 import { aiTimelineEnabledAtom } from "../atoms/ai-timeline"
-import { getVisibleLocalEntryIds } from "./filter-local-entry-ids"
+import { getVisibleLocalEntryIds, shouldFetchRemoteEntries } from "./filter-local-entry-ids"
 import { useIsPreviewFeed } from "./useIsPreviewFeed"
 
 const useRemoteEntries = (): UseEntriesReturn => {
-  const { feedId, view, inboxId, listId } = useRouteParams()
+  const { feedId, view, inboxId, listId, isCollection } = useRouteParams()
   const isPreview = useIsPreviewFeed()
 
   const unreadOnly = useGeneralSettingKey("unreadOnly")
@@ -47,6 +47,18 @@ const useRemoteEntries = (): UseEntriesReturn => {
   })
 
   const entriesOptions = useMemo(() => {
+    if (
+      !shouldFetchRemoteEntries({
+        feedId,
+        folderFeedIds: folderIds,
+        inboxId,
+        listId,
+        isCollection,
+      })
+    ) {
+      return
+    }
+
     const params = {
       feedId: folderIds?.join(",") || feedId,
       inboxId,
@@ -76,6 +88,7 @@ const useRemoteEntries = (): UseEntriesReturn => {
     hidePrivateSubscriptionsInTimeline,
     aiTimelineEnabled,
     aiEnabled,
+    isCollection,
   ])
   const query = useEntriesQuery(entriesOptions)
 
