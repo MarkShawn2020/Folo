@@ -12,6 +12,7 @@ import {
   getXiaohongshuLoginQRCode,
   getXiaohongshuLoginStatus,
   getXiaohongshuNoteContent,
+  getXiaohongshuUserProfile,
   searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "~/modules/xiaohongshu/xiaohongshu-mcp"
@@ -73,6 +74,11 @@ interface FetchXiaohongshuNoteInput extends XiaohongshuMCPInput {
   url: string
 }
 
+interface FetchXiaohongshuUserProfileInput extends XiaohongshuMCPInput {
+  userId: string
+  xsecToken: string
+}
+
 export class IntegrationService extends IpcService {
   static override readonly groupName = "integration"
 
@@ -113,6 +119,20 @@ export class IntegrationService extends IpcService {
     }
 
     return searchXiaohongshuAccounts(keywords, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async fetchXiaohongshuUserProfile(context: IpcContext, input: FetchXiaohongshuUserProfileInput) {
+    const userId = input.userId.trim()
+    const xsecToken = input.xsecToken.trim()
+    if (!userId || !xsecToken) {
+      throw new Error("Xiaohongshu user id and access token are required")
+    }
+
+    return getXiaohongshuUserProfile(userId, xsecToken, {
       endpoint: input.endpoint,
       timeout: input.timeout,
     })

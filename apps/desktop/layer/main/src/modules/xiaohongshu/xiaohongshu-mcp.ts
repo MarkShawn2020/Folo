@@ -28,9 +28,19 @@ export interface XiaohongshuSearchAccount {
   nickname: string
   avatar: string
   profileUrl: string
-  feedUrl: string
+  xsecToken: string
   matchedNoteCount: number
   sampleTitles: string[]
+}
+
+export interface XiaohongshuUserProfile {
+  userId: string
+  redId: string
+  nickname: string
+  description: string
+  avatar: string
+  profileUrl: string
+  notes: XiaohongshuSearchNote[]
 }
 
 export interface XiaohongshuNoteContent {
@@ -74,7 +84,7 @@ type XiaohongshuApiResponse = {
   message?: string
 }
 
-type XiaohongshuToolName = "search_feeds" | "get_feed_detail"
+type XiaohongshuToolName = "search_feeds" | "get_feed_detail" | "user_profile"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -451,7 +461,7 @@ export const parseXiaohongshuSearchAccounts = (
   const accounts = new Map<string, XiaohongshuSearchAccount>()
 
   for (const note of parseXiaohongshuSearchResults(text)) {
-    if (!note.authorId) {
+    if (!note.authorId || !note.xsecToken) {
       continue
     }
 
@@ -471,6 +481,9 @@ export const parseXiaohongshuSearchAccounts = (
       if (!existingAccount.avatar && note.authorAvatar) {
         existingAccount.avatar = note.authorAvatar
       }
+      if (!existingAccount.xsecToken && note.xsecToken) {
+        existingAccount.xsecToken = note.xsecToken
+      }
       continue
     }
 
@@ -480,7 +493,7 @@ export const parseXiaohongshuSearchAccounts = (
       nickname: note.author,
       avatar: note.authorAvatar,
       profileUrl: `https://www.xiaohongshu.com/user/profile/${encodedUserId}`,
-      feedUrl: `rsshub://xiaohongshu/user/${encodedUserId}/notes`,
+      xsecToken: note.xsecToken,
       matchedNoteCount: 1,
       sampleTitles: note.title ? [note.title] : [],
     })
@@ -494,6 +507,32 @@ export const parseXiaohongshuSearchAccounts = (
     }
     return right.matchedNoteCount - left.matchedNoteCount
   })
+}
+
+export const parseXiaohongshuUserProfile = (
+  text: string,
+  userId: string,
+): XiaohongshuUserProfile => {
+  const payload = parseJsonPayload(text)
+  if (!payload) {
+    throw new Error("Xiaohongshu MCP returned an invalid user profile.")
+  }
+
+  const basicInfo = getRecord(payload, "userBasicInfo")
+  const encodedUserId = encodeURIComponent(userId)
+
+  return {
+    userId,
+    redId: getString(basicInfo, "redId"),
+    nickname: getString(basicInfo, "nickname"),
+    description: getString(basicInfo, "desc"),
+    avatar:
+      getString(basicInfo, "imageb") ||
+      getString(basicInfo, "images") ||
+      getString(basicInfo, "avatar"),
+    profileUrl: `https://www.xiaohongshu.com/user/profile/${encodedUserId}`,
+    notes: parseSearchPayload(payload),
+  }
 }
 
 export const parseXiaohongshuNoteContent = (text: string): XiaohongshuNoteContent => {
@@ -743,6 +782,23 @@ export async function searchXiaohongshuAccounts(keywords: string, options?: Xiao
   return {
     accounts: parseXiaohongshuSearchAccounts(raw, keywords),
   }
+}
+
+export async function getXiaohongshuUserProfile(
+  userId: string,
+  xsecToken: string,
+  options?: XiaohongshuMCPOptions,
+) {
+  const raw = await callXiaohongshuTool(
+    "user_profile",
+    {
+      user_id: userId,
+      xsec_token: xsecToken,
+    },
+    options,
+  )
+
+  return parseXiaohongshuUserProfile(raw, userId)
 }
 
 export async function getXiaohongshuNoteContent(url: string, options?: XiaohongshuMCPOptions) {

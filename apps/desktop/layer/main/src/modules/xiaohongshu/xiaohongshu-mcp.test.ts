@@ -5,6 +5,7 @@ import {
   parseXiaohongshuNoteContent,
   parseXiaohongshuSearchAccounts,
   parseXiaohongshuSearchResults,
+  parseXiaohongshuUserProfile,
   searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "./xiaohongshu-mcp"
@@ -112,6 +113,7 @@ describe("xiaohongshu-mcp parsers", () => {
     const raw = JSON.stringify({
       feeds: [
         {
+          xsecToken: "token-a",
           id: "note-a",
           noteCard: {
             displayTitle: "上海探店",
@@ -119,6 +121,7 @@ describe("xiaohongshu-mcp parsers", () => {
           },
         },
         {
+          xsecToken: "token-b",
           id: "note-b",
           noteCard: {
             displayTitle: "城市漫游周末路线",
@@ -126,6 +129,7 @@ describe("xiaohongshu-mcp parsers", () => {
           },
         },
         {
+          xsecToken: "token-c",
           id: "note-c",
           noteCard: {
             displayTitle: "杭州散步",
@@ -145,7 +149,7 @@ describe("xiaohongshu-mcp parsers", () => {
         nickname: "城市漫游",
         avatar: "https://example.com/avatar-a.png",
         profileUrl: "https://www.xiaohongshu.com/user/profile/user-a",
-        feedUrl: "rsshub://xiaohongshu/user/user-a/notes",
+        xsecToken: "token-a",
         matchedNoteCount: 2,
         sampleTitles: ["上海探店", "杭州散步"],
       },
@@ -154,11 +158,48 @@ describe("xiaohongshu-mcp parsers", () => {
         nickname: "阿蓝",
         avatar: "",
         profileUrl: "https://www.xiaohongshu.com/user/profile/user-b",
-        feedUrl: "rsshub://xiaohongshu/user/user-b/notes",
+        xsecToken: "token-b",
         matchedNoteCount: 1,
         sampleTitles: ["城市漫游周末路线"],
       },
     ])
+  })
+
+  it("parses a user profile with its account metadata and notes", () => {
+    const raw = JSON.stringify({
+      userBasicInfo: {
+        redId: "red-123",
+        nickname: "城市漫游",
+        desc: "周末散步记录",
+        imageb: "https://example.com/avatar.png",
+      },
+      feeds: [
+        {
+          id: "6a69796d0000000010026968",
+          xsecToken: "note-token",
+          noteCard: {
+            displayTitle: "上海散步",
+            user: { userId: "user-a", nickname: "城市漫游" },
+          },
+        },
+      ],
+    })
+
+    expect(parseXiaohongshuUserProfile(raw, "user-a")).toMatchObject({
+      userId: "user-a",
+      redId: "red-123",
+      nickname: "城市漫游",
+      description: "周末散步记录",
+      avatar: "https://example.com/avatar.png",
+      profileUrl: "https://www.xiaohongshu.com/user/profile/user-a",
+      notes: [
+        {
+          noteId: "6a69796d0000000010026968",
+          title: "上海散步",
+          xsecToken: "note-token",
+        },
+      ],
+    })
   })
 
   it("parses feed detail JSON from xpzouying/xiaohongshu-mcp", () => {
@@ -276,6 +317,7 @@ describe("xiaohongshu-mcp connection", () => {
                     feeds: [
                       {
                         id: "note-a",
+                        xsecToken: "token-a",
                         noteCard: {
                           displayTitle: "上海咖啡店",
                           user: { userId: "user-a", nickname: "小红" },
@@ -298,7 +340,7 @@ describe("xiaohongshu-mcp connection", () => {
           nickname: "小红",
           avatar: "",
           profileUrl: "https://www.xiaohongshu.com/user/profile/user-a",
-          feedUrl: "rsshub://xiaohongshu/user/user-a/notes",
+          xsecToken: "token-a",
           matchedNoteCount: 1,
           sampleTitles: ["上海咖啡店"],
         },
