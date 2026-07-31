@@ -12,6 +12,7 @@ import {
   getXiaohongshuLoginQRCode,
   getXiaohongshuLoginStatus,
   getXiaohongshuNoteContent,
+  searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "~/modules/xiaohongshu/xiaohongshu-mcp"
 
@@ -99,6 +100,19 @@ export class IntegrationService extends IpcService {
     }
 
     return searchXiaohongshuNotes(keywords, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async searchXiaohongshuAccounts(context: IpcContext, input: SearchXiaohongshuNotesInput) {
+    const keywords = input.keywords.trim()
+    if (!keywords) {
+      throw new Error("Search keyword is required")
+    }
+
+    return searchXiaohongshuAccounts(keywords, {
       endpoint: input.endpoint,
       timeout: input.timeout,
     })

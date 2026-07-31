@@ -11,6 +11,8 @@ export interface XiaohongshuSearchNote {
   index: number
   title: string
   author: string
+  authorId: string
+  authorAvatar: string
   likedCount: string
   commentCount: string
   collectedCount: string
@@ -19,6 +21,16 @@ export interface XiaohongshuSearchNote {
   noteId: string | null
   xsecToken: string | null
   raw: string
+}
+
+export interface XiaohongshuSearchAccount {
+  userId: string
+  nickname: string
+  avatar: string
+  profileUrl: string
+  feedUrl: string
+  matchedNoteCount: number
+  sampleTitles: string[]
 }
 
 export interface XiaohongshuNoteContent {
@@ -315,6 +327,8 @@ const parseLegacySearchResults = (text: string): XiaohongshuSearchNote[] => {
         index,
         title,
         author: "",
+        authorId: "",
+        authorAvatar: "",
         likedCount,
         commentCount: "",
         collectedCount: "",
@@ -376,6 +390,8 @@ const toSearchNote = (feed: unknown, fallbackIndex: number): XiaohongshuSearchNo
     index: getNumber(feed, "index") ?? fallbackIndex,
     title,
     author: getString(user, "nickname") || getString(user, "nickName"),
+    authorId: getString(user, "userId") || getString(user, "user_id"),
+    authorAvatar: getString(user, "avatar"),
     likedCount: getString(interactInfo, "likedCount"),
     commentCount: getString(interactInfo, "commentCount"),
     collectedCount: getString(interactInfo, "collectedCount"),
@@ -407,6 +423,77 @@ export const parseXiaohongshuSearchResults = (text: string): XiaohongshuSearchNo
   }
 
   return parseLegacySearchResults(text)
+}
+
+const getAccountMatchRank = (account: XiaohongshuSearchAccount, keywords: string) => {
+  const normalizedKeywords = keywords.trim().toLowerCase()
+  if (!normalizedKeywords) {
+    return 3
+  }
+
+  const normalizedNickname = account.nickname.trim().toLowerCase()
+  if (normalizedNickname === normalizedKeywords) {
+    return 0
+  }
+  if (normalizedNickname.includes(normalizedKeywords)) {
+    return 1
+  }
+  if (account.sampleTitles.some((title) => title.toLowerCase().includes(normalizedKeywords))) {
+    return 2
+  }
+  return 3
+}
+
+export const parseXiaohongshuSearchAccounts = (
+  text: string,
+  keywords = "",
+): XiaohongshuSearchAccount[] => {
+  const accounts = new Map<string, XiaohongshuSearchAccount>()
+
+  for (const note of parseXiaohongshuSearchResults(text)) {
+    if (!note.authorId) {
+      continue
+    }
+
+    const existingAccount = accounts.get(note.authorId)
+    if (existingAccount) {
+      existingAccount.matchedNoteCount += 1
+      if (
+        note.title &&
+        existingAccount.sampleTitles.length < 3 &&
+        !existingAccount.sampleTitles.includes(note.title)
+      ) {
+        existingAccount.sampleTitles.push(note.title)
+      }
+      if (!existingAccount.nickname && note.author) {
+        existingAccount.nickname = note.author
+      }
+      if (!existingAccount.avatar && note.authorAvatar) {
+        existingAccount.avatar = note.authorAvatar
+      }
+      continue
+    }
+
+    const encodedUserId = encodeURIComponent(note.authorId)
+    accounts.set(note.authorId, {
+      userId: note.authorId,
+      nickname: note.author,
+      avatar: note.authorAvatar,
+      profileUrl: `https://www.xiaohongshu.com/user/profile/${encodedUserId}`,
+      feedUrl: `rsshub://xiaohongshu/user/${encodedUserId}/notes`,
+      matchedNoteCount: 1,
+      sampleTitles: note.title ? [note.title] : [],
+    })
+  }
+
+  return [...accounts.values()].sort((left, right) => {
+    const rankDifference =
+      getAccountMatchRank(left, keywords) - getAccountMatchRank(right, keywords)
+    if (rankDifference !== 0) {
+      return rankDifference
+    }
+    return right.matchedNoteCount - left.matchedNoteCount
+  })
 }
 
 export const parseXiaohongshuNoteContent = (text: string): XiaohongshuNoteContent => {
@@ -648,6 +735,13 @@ export async function searchXiaohongshuNotes(keywords: string, options?: Xiaohon
   return {
     raw,
     notes: parseXiaohongshuSearchResults(raw),
+  }
+}
+
+export async function searchXiaohongshuAccounts(keywords: string, options?: XiaohongshuMCPOptions) {
+  const raw = await callXiaohongshuTool("search_feeds", { keyword: keywords }, options)
+  return {
+    accounts: parseXiaohongshuSearchAccounts(raw, keywords),
   }
 }
 

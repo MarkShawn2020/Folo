@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   getXiaohongshuLoginStatus,
   parseXiaohongshuNoteContent,
+  parseXiaohongshuSearchAccounts,
   parseXiaohongshuSearchResults,
+  searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "./xiaohongshu-mcp"
 
@@ -78,6 +80,8 @@ describe("xiaohongshu-mcp parsers", () => {
         index: 0,
         title: "上海周末咖啡地图",
         author: "小红",
+        authorId: "user-a",
+        authorAvatar: "https://sns-avatar-qc.xhscdn.com/avatar-a",
         likedCount: "1234",
         commentCount: "56",
         collectedCount: "789",
@@ -89,6 +93,8 @@ describe("xiaohongshu-mcp parsers", () => {
         index: 1,
         title: "杭州徒步路线",
         author: "小蓝",
+        authorId: "user-b",
+        authorAvatar: "",
         likedCount: "88",
         commentCount: "9",
         collectedCount: "12",
@@ -100,6 +106,59 @@ describe("xiaohongshu-mcp parsers", () => {
     expect(result[0]?.url).toBe(
       "https://www.xiaohongshu.com/explore/abc123?xsec_token=token-a&xsec_source=pc_feed",
     )
+  })
+
+  it("deduplicates note authors into subscribable accounts and ranks exact matches first", () => {
+    const raw = JSON.stringify({
+      feeds: [
+        {
+          id: "note-a",
+          noteCard: {
+            displayTitle: "上海探店",
+            user: { userId: "user-a", nickname: "城市漫游" },
+          },
+        },
+        {
+          id: "note-b",
+          noteCard: {
+            displayTitle: "城市漫游周末路线",
+            user: { userId: "user-b", nickname: "阿蓝" },
+          },
+        },
+        {
+          id: "note-c",
+          noteCard: {
+            displayTitle: "杭州散步",
+            user: {
+              userId: "user-a",
+              nickname: "城市漫游",
+              avatar: "https://example.com/avatar-a.png",
+            },
+          },
+        },
+      ],
+    })
+
+    expect(parseXiaohongshuSearchAccounts(raw, "城市漫游")).toEqual([
+      {
+        userId: "user-a",
+        nickname: "城市漫游",
+        avatar: "https://example.com/avatar-a.png",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/user-a",
+        feedUrl: "rsshub://xiaohongshu/user/user-a/notes",
+        matchedNoteCount: 2,
+        sampleTitles: ["上海探店", "杭州散步"],
+      },
+      {
+        userId: "user-b",
+        nickname: "阿蓝",
+        avatar: "",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/user-b",
+        feedUrl: "rsshub://xiaohongshu/user/user-b/notes",
+        matchedNoteCount: 1,
+        sampleTitles: ["城市漫游周末路线"],
+      },
+    ])
   })
 
   it("parses feed detail JSON from xpzouying/xiaohongshu-mcp", () => {
@@ -193,6 +252,58 @@ describe("xiaohongshu-mcp connection", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(result.notes).toHaveLength(1)
     expect(result.notes[0]?.title).toBe("上海咖啡店")
+  })
+
+  it("returns account results instead of exposing matching notes", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }), {
+          headers: { "mcp-session-id": "session-a" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 202 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    feeds: [
+                      {
+                        id: "note-a",
+                        noteCard: {
+                          displayTitle: "上海咖啡店",
+                          user: { userId: "user-a", nickname: "小红" },
+                        },
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          }),
+        ),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(searchXiaohongshuAccounts("小红")).resolves.toEqual({
+      accounts: [
+        {
+          userId: "user-a",
+          nickname: "小红",
+          avatar: "",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/user-a",
+          feedUrl: "rsshub://xiaohongshu/user/user-a/notes",
+          matchedNoteCount: 1,
+          sampleTitles: ["上海咖啡店"],
+        },
+      ],
+    })
   })
 
   it("starts the managed service before reading login status", async () => {
