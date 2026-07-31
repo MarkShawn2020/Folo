@@ -10,6 +10,7 @@ import { IntegrationService } from "./services/integration"
 import { MenuService } from "./services/menu"
 import { ReaderService } from "./services/reader"
 import { SettingService } from "./services/setting"
+import { WxmpService } from "./services/wxmp"
 
 // Initialize all services
 const services = createServices([
@@ -22,6 +23,7 @@ const services = createServices([
   ReaderService,
   SettingService,
   IntegrationService,
+  WxmpService,
 ])
 // Extract method types automatically from services
 export type IpcServices = MergeIpcService<typeof services>

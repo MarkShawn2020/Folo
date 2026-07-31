@@ -8,6 +8,12 @@ import path from "pathe"
 
 import { store } from "~/lib/store"
 import { logger } from "~/logger"
+import {
+  getXiaohongshuLoginQRCode,
+  getXiaohongshuLoginStatus,
+  getXiaohongshuNoteContent,
+  searchXiaohongshuNotes,
+} from "~/modules/xiaohongshu/xiaohongshu-mcp"
 
 // Taken from https://github.com/rollup/rollup/blob/4f69d33af3b2ec9320c43c9e6c65ea23a02bdde3/src/utils/sanitizeFileName.ts
 // https://datatracker.ietf.org/doc/html/rfc2396
@@ -53,8 +59,63 @@ interface CustomFetchInput {
   timeout?: number
 }
 
+interface XiaohongshuMCPInput {
+  endpoint?: string
+  timeout?: number
+}
+
+interface SearchXiaohongshuNotesInput extends XiaohongshuMCPInput {
+  keywords: string
+}
+
+interface FetchXiaohongshuNoteInput extends XiaohongshuMCPInput {
+  url: string
+}
+
 export class IntegrationService extends IpcService {
   static override readonly groupName = "integration"
+
+  @IpcMethod()
+  async getXiaohongshuLoginStatus(context: IpcContext, input: XiaohongshuMCPInput) {
+    return getXiaohongshuLoginStatus({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async getXiaohongshuLoginQRCode(context: IpcContext, input: XiaohongshuMCPInput) {
+    return getXiaohongshuLoginQRCode({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async searchXiaohongshuNotes(context: IpcContext, input: SearchXiaohongshuNotesInput) {
+    const keywords = input.keywords.trim()
+    if (!keywords) {
+      throw new Error("Search keyword is required")
+    }
+
+    return searchXiaohongshuNotes(keywords, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async fetchXiaohongshuNote(context: IpcContext, input: FetchXiaohongshuNoteInput) {
+    const url = input.url.trim()
+    if (!url) {
+      throw new Error("Xiaohongshu note URL is required")
+    }
+
+    return getXiaohongshuNoteContent(url, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
 
   @IpcMethod()
   async saveToObsidian(

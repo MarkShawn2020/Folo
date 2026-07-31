@@ -27,6 +27,8 @@ import { z } from "zod"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
 import { followClient } from "~/lib/api-client"
+import { ipcServices } from "~/lib/client"
+import { toastFetchError } from "~/lib/error-parser"
 
 import {
   getDiscoverSearchData,
@@ -39,6 +41,9 @@ import { DiscoverInboxList } from "./DiscoverInboxList"
 import { DiscoverTransform } from "./DiscoverTransform"
 import { DiscoverUser } from "./DiscoverUser"
 import { FeedForm } from "./FeedForm"
+import { WechatChannelForm } from "./WechatChannelForm"
+import { createWxmpDiscoveryItem, importWxmpChannelToLocalFeed } from "./wxmp-local-import"
+import { XiaohongshuMCPModal } from "./xiaohongshu/XiaohongshuMCPModal"
 
 const isFeedLikeUrl = (value: string) => {
   const trimmed = value.trim()
@@ -57,9 +62,12 @@ function detectInputType(value: string): "rss" | "rsshub" | "search" {
   return "search"
 }
 
+const searchTargets = ["feeds", "lists"] as const
+type SearchTarget = (typeof searchTargets)[number]
+
 const searchSchema = z.object({
   keyword: z.string().min(1),
-  target: z.enum(["feeds", "lists"]),
+  target: z.enum(searchTargets),
 })
 
 const rssSchema = z.object({
@@ -73,6 +81,43 @@ const rsshubSchema = z.object({
 })
 
 type SearchFormData = z.infer<typeof searchSchema>
+
+const fetchWxmpDiscoveryItem = async (keyword: string): Promise<DiscoveryItem | null> => {
+  if (!window.electron?.ipcRenderer || !ipcServices?.wxmp) {
+    return null
+  }
+
+  try {
+    const result = await ipcServices.wxmp.tryFetchChannel({
+      query: keyword,
+      limit: 20,
+      withContent: true,
+    })
+    if (!result) {
+      return null
+    }
+    const imported = await importWxmpChannelToLocalFeed(result)
+    return createWxmpDiscoveryItem(result, imported)
+  } catch {
+    return null
+  }
+}
+
+const mergeWxmpDiscoveryItem = (
+  data: DiscoveryItem[],
+  wxmpItem: DiscoveryItem | null,
+): DiscoveryItem[] => {
+  if (!wxmpItem) {
+    return data
+  }
+
+  const wxmpFeedId = wxmpItem.feed?.id
+  if (!wxmpFeedId) {
+    return data
+  }
+
+  return [wxmpItem, ...data.filter((item) => item.feed?.id !== wxmpFeedId)]
+}
 
 // Compact Tool Link Component
 interface ToolLinkProps {
@@ -139,7 +184,7 @@ export function UnifiedDiscoverForm() {
   const discoverSearchData = useDiscoverSearchData()?.[atomKey.current] || []
 
   const mutation = useMutation({
-    mutationFn: async ({ keyword, target }: { keyword: string; target: "feeds" | "lists" }) => {
+    mutationFn: async ({ keyword, target }: { keyword: string; target: SearchTarget }) => {
       const inputType = detectInputType(keyword)
 
       // For RSS/RSSHub, validate and show feed form modal directly
@@ -168,17 +213,25 @@ export function UnifiedDiscoverForm() {
       }
 
       // For search, perform discovery
-      const { data } = await followClient.api.discover.discover({
-        keyword: keyword.trim(),
-        target,
-      })
+      const trimmedKeyword = keyword.trim()
+      const [{ data }, wxmpItem] = await Promise.all([
+        followClient.api.discover.discover({
+          keyword: trimmedKeyword,
+          target,
+        }),
+        target === "feeds" ? fetchWxmpDiscoveryItem(trimmedKeyword) : Promise.resolve(null),
+      ])
+      const mergedData = mergeWxmpDiscoveryItem(data, wxmpItem)
 
       setDiscoverSearchData((prev) => ({
         ...prev,
-        [atomKey.current]: data,
+        [atomKey.current]: mergedData,
       }))
 
-      return data
+      return mergedData
+    },
+    onError(error) {
+      toastFetchError(error)
     },
   })
 
@@ -278,7 +331,7 @@ export function UnifiedDiscoverForm() {
 
   const handleTargetChange = useCallback(
     (value: string) => {
-      form.setValue("target", value as "feeds" | "lists")
+      form.setValue("target", value as SearchTarget)
     },
     [form],
   )
@@ -410,7 +463,7 @@ export function UnifiedDiscoverForm() {
                 type="submit"
                 isLoading={mutation.isPending}
               >
-                {detectedType === "search" ? t("words.search") : t("discover.preview")}
+                {detectedType !== "search" ? t("discover.preview") : t("words.search")}
               </Button>
 
               {/* Compact Tools */}
@@ -455,6 +508,28 @@ export function UnifiedDiscoverForm() {
                     present({
                       title: t("words.user"),
                       content: () => <DiscoverUser />,
+                      modalClassName: "max-w-2xl w-full",
+                    })
+                  }}
+                />
+                <ToolLink
+                  icon="i-mgc-search-2-cute-re"
+                  label={t("discover.tools.xiaohongshu")}
+                  onClick={() => {
+                    present({
+                      title: t("discover.tools.xiaohongshu"),
+                      content: () => <XiaohongshuMCPModal />,
+                      modalClassName: "max-w-3xl w-full",
+                    })
+                  }}
+                />
+                <ToolLink
+                  icon="i-mgc-wechat-cute-re"
+                  label={t("discover.tools.wxmp")}
+                  onClick={() => {
+                    present({
+                      title: t("discover.wxmp.title"),
+                      content: () => <WechatChannelForm initialQuery={form.getValues("keyword")} />,
                       modalClassName: "max-w-2xl w-full",
                     })
                   }}
