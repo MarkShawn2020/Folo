@@ -641,6 +641,28 @@ export class WxmpService extends IpcService {
     }
   }
 
+  private async readCachedChannel(input: WxmpFetchInput): Promise<WxmpFetchResult | null> {
+    const query = input.query.trim()
+    if (!query) return null
+
+    const limit = Math.min(Math.max(input.limit ?? 20, 1), 500)
+    const wcxPath = await locateWcx()
+    const payload = await runPythonJson<WcxCachePayload>(wcxPath, READ_FETCH_RESULT_PY, [
+      getWcxCacheDbPath(),
+      query,
+      String(limit),
+    ])
+
+    if (!payload.account) return null
+
+    return {
+      account: payload.account,
+      articles: payload.articles,
+      stdout: "",
+      stderr: "",
+    }
+  }
+
   @IpcMethod()
   async tryFetchChannel(
     context: IpcContext,
@@ -650,7 +672,10 @@ export class WxmpService extends IpcService {
       const result = await this.fetchChannel(context, input)
       return isWxmpAccountSearchMatch(result.account, input.query) ? result : null
     } catch {
-      return null
+      // A temporary upstream rejection (such as WeChat frequency control) must not hide a
+      // channel that wcx has already cached locally.
+      const cached = await this.readCachedChannel(input).catch(() => null)
+      return cached && isWxmpAccountSearchMatch(cached.account, input.query) ? cached : null
     }
   }
 }
