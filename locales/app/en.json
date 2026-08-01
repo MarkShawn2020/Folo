@@ -155,6 +155,7 @@
   "discover.xiaohongshu.preparing": "Preparing the search service for first use. This may take 2–3 minutes.",
   "discover.xiaohongshu.results": "Accounts ({{count}})",
   "discover.xiaohongshu.search_failed": "Failed to search Xiaohongshu",
+  "discover.xiaohongshu.stop_search": "Stop",
   "discover.xiaohongshu.subscribe": "Subscribe and sync",
   "discover.xiaohongshu.subscribe_failed": "Failed to subscribe to Xiaohongshu account",
   "discover.xiaohongshu.subscribe_success": "Subscribed to {{name}} and synced {{count}} posts.",

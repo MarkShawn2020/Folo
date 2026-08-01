@@ -348,6 +348,32 @@ describe("xiaohongshu-mcp connection", () => {
     })
   })
 
+  it("aborts an active account search when the caller cancels it", async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const signal = init?.signal
+      return new Promise<Response>((_resolve, reject) => {
+        if (!signal) {
+          reject(new Error("Missing abort signal"))
+          return
+        }
+        signal.addEventListener(
+          "abort",
+          () => reject(new DOMException("The operation was aborted.", "AbortError")),
+          { once: true },
+        )
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const searchPromise = searchXiaohongshuAccounts("小红", { signal: controller.signal })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    controller.abort()
+
+    await expect(searchPromise).rejects.toThrow("request was cancelled")
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
+  })
+
   it("starts the managed service before reading login status", async () => {
     ensureLocalXiaohongshuMCP.mockResolvedValue()
     const fetchMock = vi

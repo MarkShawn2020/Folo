@@ -5,6 +5,7 @@ const MCP_PROTOCOL_VERSION = "2024-11-05"
 export interface XiaohongshuMCPOptions {
   endpoint?: string
   timeout?: number
+  signal?: AbortSignal
 }
 
 export interface XiaohongshuSearchNote {
@@ -200,7 +201,17 @@ const getXiaohongshuApiData = async (pathname: string, options: XiaohongshuMCPOp
 
   return withManagedLocalService(endpoint, async () => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    let didTimeOut = false
+    const abortRequest = () => controller.abort()
+    if (options.signal?.aborted) {
+      controller.abort()
+    } else {
+      options.signal?.addEventListener("abort", abortRequest, { once: true })
+    }
+    const timeoutId = setTimeout(() => {
+      didTimeOut = true
+      controller.abort()
+    }, timeout)
     try {
       const response = await fetch(apiUrl, { signal: controller.signal })
       const payload = (await response.json()) as XiaohongshuApiResponse
@@ -210,11 +221,15 @@ const getXiaohongshuApiData = async (pathname: string, options: XiaohongshuMCPOp
       return payload.data
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
+        if (!didTimeOut && options.signal?.aborted) {
+          throw new Error("Xiaohongshu MCP request was cancelled.")
+        }
         throw new Error(`Xiaohongshu MCP timed out after ${timeout}ms: ${apiUrl}`)
       }
       throw error
     } finally {
       clearTimeout(timeoutId)
+      options.signal?.removeEventListener("abort", abortRequest)
     }
   })
 }
@@ -631,9 +646,20 @@ async function performXiaohongshuToolCall(
   toolName: XiaohongshuToolName,
   toolArguments: Record<string, unknown>,
   timeout: number,
+  signal?: AbortSignal,
 ) {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  let didTimeOut = false
+  const abortRequest = () => controller.abort()
+  if (signal?.aborted) {
+    controller.abort()
+  } else {
+    signal?.addEventListener("abort", abortRequest, { once: true })
+  }
+  const timeoutId = setTimeout(() => {
+    didTimeOut = true
+    controller.abort()
+  }, timeout)
   let sessionId: string | null = null
   let nextId = 1
 
@@ -722,11 +748,15 @@ async function performXiaohongshuToolCall(
     return text
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      if (!didTimeOut && signal?.aborted) {
+        throw new Error("Xiaohongshu MCP request was cancelled.")
+      }
       throw new Error(`Xiaohongshu MCP timed out after ${timeout}ms: ${endpoint}`)
     }
     throw error
   } finally {
     clearTimeout(timeoutId)
+    signal?.removeEventListener("abort", abortRequest)
   }
 }
 
@@ -739,7 +769,7 @@ async function callXiaohongshuTool(
   const timeout = options.timeout ?? DEFAULT_TIMEOUT
 
   return withManagedLocalService(endpoint, () =>
-    performXiaohongshuToolCall(endpoint, toolName, toolArguments, timeout),
+    performXiaohongshuToolCall(endpoint, toolName, toolArguments, timeout, options.signal),
   )
 }
 

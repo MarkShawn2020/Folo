@@ -1,7 +1,7 @@
 import { Button } from "@follow/components/ui/button/index.js"
 import { Input } from "@follow/components/ui/input/index.js"
 import { Label } from "@follow/components/ui/label/index.jsx"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -54,6 +54,7 @@ export function XiaohongshuMCPModal() {
     () => getCachedXiaohongshuLogin({})?.username ?? "",
   )
   const [pendingKeywords, setPendingKeywords] = useState<string | null>(null)
+  const activeSearchRequestIdRef = useRef<string | null>(null)
 
   const integrationServices = ipcServices?.integration
   const canUseLocalMCP = Boolean(window.electron && integrationServices)
@@ -64,20 +65,45 @@ export function XiaohongshuMCPModal() {
   }, [endpoint])
 
   const runSearch = useCallback(
-    async (searchKeywords: string) => {
-      if (!integrationServices) return
+    async (searchKeywords: string, requestId: string) => {
+      if (!integrationServices) return false
 
       const result = await integrationServices.searchXiaohongshuAccounts({
         keywords: searchKeywords,
         endpoint: endpoint.trim() || undefined,
+        requestId,
       })
+      if (activeSearchRequestIdRef.current !== requestId) {
+        return false
+      }
       setAccounts(result.accounts)
       setHasSearched(true)
       if (result.accounts.length === 0) {
         toast.info(t("discover.xiaohongshu.no_results"))
       }
+      return true
     },
     [endpoint, integrationServices, t],
+  )
+
+  const stopSearch = useCallback(() => {
+    const requestId = activeSearchRequestIdRef.current
+    if (!requestId) return
+
+    activeSearchRequestIdRef.current = null
+    setIsSearching(false)
+    setIsPreparing(false)
+    void integrationServices?.cancelXiaohongshuSearch({ requestId })
+  }, [integrationServices])
+
+  useEffect(
+    () => () => {
+      const requestId = activeSearchRequestIdRef.current
+      if (!requestId) return
+      activeSearchRequestIdRef.current = null
+      void integrationServices?.cancelXiaohongshuSearch({ requestId })
+    },
+    [integrationServices],
   )
 
   useEffect(() => {
@@ -104,15 +130,21 @@ export function XiaohongshuMCPModal() {
           userId: status.userId,
         })
         toast.success(t("discover.xiaohongshu.login_success"))
+        const requestId = crypto.randomUUID()
+        activeSearchRequestIdRef.current = requestId
         setIsSearching(true)
         try {
-          await runSearch(searchKeywords)
+          await runSearch(searchKeywords, requestId)
         } catch (error) {
+          if (activeSearchRequestIdRef.current !== requestId) return
           toast.error(t("discover.xiaohongshu.search_failed"), {
             description: getErrorMessage(error),
           })
         } finally {
-          setIsSearching(false)
+          if (activeSearchRequestIdRef.current === requestId) {
+            activeSearchRequestIdRef.current = null
+            setIsSearching(false)
+          }
         }
       } catch {
         // The next poll retries transient browser startup and login checks.
@@ -140,14 +172,15 @@ export function XiaohongshuMCPModal() {
       return
     }
 
+    const requestId = crypto.randomUUID()
+    activeSearchRequestIdRef.current = requestId
     let cachedLogin = getCachedXiaohongshuLogin({ endpoint })
     setIsSearching(true)
     setIsPreparing(!cachedLogin)
-    setAccounts([])
-    setHasSearched(false)
     try {
       if (!cachedLogin && !endpoint.trim()) {
         const hasCachedSession = await integrationServices.hasCachedXiaohongshuSession({})
+        if (activeSearchRequestIdRef.current !== requestId) return
         if (hasCachedSession) {
           cachedLogin = {
             username: loginUsername,
@@ -161,7 +194,9 @@ export function XiaohongshuMCPModal() {
       let status: { isLoggedIn: boolean; username: string; userId: string }
       const cachedSearchResult = await tryCachedXiaohongshuSearch({
         cachedLogin,
-        search: () => runSearch(trimmedKeywords),
+        search: async () => {
+          await runSearch(trimmedKeywords, requestId)
+        },
         verifyLogin: () => {
           setIsPreparing(true)
           return integrationServices.getXiaohongshuLoginStatus({
@@ -169,6 +204,7 @@ export function XiaohongshuMCPModal() {
           })
         },
       })
+      if (activeSearchRequestIdRef.current !== requestId) return
 
       if (cachedSearchResult.kind === "search-complete") {
         return
@@ -181,6 +217,7 @@ export function XiaohongshuMCPModal() {
         status = await integrationServices.getXiaohongshuLoginStatus({
           endpoint: endpoint.trim() || undefined,
         })
+        if (activeSearchRequestIdRef.current !== requestId) return
       }
       setIsPreparing(false)
       setLoginUsername(status.username)
@@ -189,6 +226,7 @@ export function XiaohongshuMCPModal() {
         const qrCode = await integrationServices.getXiaohongshuLoginQRCode({
           endpoint: endpoint.trim() || undefined,
         })
+        if (activeSearchRequestIdRef.current !== requestId) return
         if (!qrCode.isLoggedIn && qrCode.image) {
           setLoginQRCode(qrCode.image)
           setPendingKeywords(trimmedKeywords)
@@ -204,14 +242,18 @@ export function XiaohongshuMCPModal() {
 
       setLoginQRCode("")
       setPendingKeywords(null)
-      await runSearch(trimmedKeywords)
+      await runSearch(trimmedKeywords, requestId)
     } catch (error) {
+      if (activeSearchRequestIdRef.current !== requestId) return
       toast.error(t("discover.xiaohongshu.search_failed"), {
         description: getErrorMessage(error),
       })
     } finally {
-      setIsPreparing(false)
-      setIsSearching(false)
+      if (activeSearchRequestIdRef.current === requestId) {
+        activeSearchRequestIdRef.current = null
+        setIsPreparing(false)
+        setIsSearching(false)
+      }
     }
   }
 
@@ -274,7 +316,11 @@ export function XiaohongshuMCPModal() {
               }
               if (event.key === "Enter") {
                 event.preventDefault()
-                void handleSearch()
+                if (isSearching) {
+                  stopSearch()
+                } else {
+                  void handleSearch()
+                }
               }
             }}
             placeholder={t("discover.xiaohongshu.keyword_placeholder")}
@@ -282,11 +328,18 @@ export function XiaohongshuMCPModal() {
           />
           <Button
             type="button"
-            isLoading={isSearching}
+            variant={isSearching ? "outline" : "primary"}
             buttonClassName="shrink-0 whitespace-nowrap"
-            onClick={() => void handleSearch()}
+            onClick={() => (isSearching ? stopSearch() : void handleSearch())}
           >
-            {t("words.search")}
+            {isSearching ? (
+              <>
+                <i className="i-mgc-stop-circle-cute-fi mr-1 size-4 text-red" />
+                {t("discover.xiaohongshu.stop_search")}
+              </>
+            ) : (
+              t("words.search")
+            )}
           </Button>
         </div>
         <div className="text-xs leading-5 text-text-tertiary">

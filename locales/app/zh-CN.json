@@ -155,6 +155,7 @@
   "discover.xiaohongshu.preparing": "首次使用正在准备搜索服务，可能需要 2–3 分钟。",
   "discover.xiaohongshu.results": "账号（{{count}}）",
   "discover.xiaohongshu.search_failed": "搜索小红书失败",
+  "discover.xiaohongshu.stop_search": "停止",
   "discover.xiaohongshu.subscribe": "订阅并同步",
   "discover.xiaohongshu.subscribe_failed": "订阅小红书账号失败",
   "discover.xiaohongshu.subscribe_success": "已订阅 {{name}}，同步了 {{count}} 篇笔记。",

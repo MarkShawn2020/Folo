@@ -3,7 +3,7 @@ import { getEntry } from "@follow/store/entry/getter"
 import { entryActions } from "@follow/store/entry/store"
 import type { EntryModel } from "@follow/store/entry/types"
 import { feedActions } from "@follow/store/feed/store"
-import { subscriptionActions } from "@follow/store/subscription/store"
+import { subscriptionActions, useSubscriptionStore } from "@follow/store/subscription/store"
 import type { SubscriptionModel } from "@follow/store/subscription/types"
 import { unreadActions } from "@follow/store/unread/store"
 import { whoami } from "@follow/store/user/getters"
@@ -40,6 +40,34 @@ export const getXiaohongshuLocalFeedId = (userId: string) => `xiaohongshu-${user
 
 export const isXiaohongshuLocalFeedId = (feedId: string | null | undefined): feedId is string =>
   feedId?.startsWith("xiaohongshu-") === true
+
+export const getXiaohongshuSocialMediaSubscriptionUpdates = (subscriptions: SubscriptionModel[]) =>
+  subscriptions
+    .filter(
+      (subscription) =>
+        isXiaohongshuLocalFeedId(subscription.feedId) &&
+        subscription.view !== FeedViewType.SocialMedia,
+    )
+    .map((subscription) => ({
+      ...subscription,
+      view: FeedViewType.SocialMedia,
+    }))
+
+export const repairXiaohongshuSubscriptionViews = async () => {
+  const updates = getXiaohongshuSocialMediaSubscriptionUpdates(
+    Object.values(useSubscriptionStore.getState().data),
+  )
+  if (updates.length === 0) return 0
+
+  await subscriptionActions.upsertMany(updates)
+  entryActions.moveLocalFeedEntriesToView({
+    feedIds: updates
+      .map((subscription) => subscription.feedId)
+      .filter((id): id is string => typeof id === "string"),
+    view: FeedViewType.SocialMedia,
+  })
+  return updates.length
+}
 
 const getXiaohongshuLocalEntryId = (feedId: string, noteId: string) => `${feedId}-${noteId}`
 
@@ -97,7 +125,7 @@ export const importXiaohongshuProfileToLocalFeed = async (
     listId: null,
     inboxId: null,
     userId: whoami()?.id || "local",
-    view: FeedViewType.Articles,
+    view: FeedViewType.SocialMedia,
     isPrivate: true,
     hideFromTimeline: false,
     title,
@@ -147,6 +175,10 @@ export const importXiaohongshuProfileToLocalFeed = async (
   })
 
   await entryActions.upsertMany(entries)
+  entryActions.moveLocalFeedEntriesToView({
+    feedIds: [feedId],
+    view: FeedViewType.SocialMedia,
+  })
 
   const unreadCount = Object.values(entryActions.getFlattenMapEntries()).filter(
     (entry) => entry.feedId === feedId && !entry.read,
