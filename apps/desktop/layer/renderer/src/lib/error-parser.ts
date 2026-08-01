@@ -2,6 +2,7 @@ import { cn } from "@follow/utils/utils"
 import { FollowAPIError } from "@follow-app/client-sdk"
 import { t } from "i18next"
 import { FetchError } from "ofetch"
+import type { ReactNode } from "react"
 import { createElement } from "react"
 import type { ExternalToast } from "sonner"
 import { toast } from "sonner"
@@ -10,6 +11,8 @@ import { getIsPaymentEnabled } from "~/atoms/server-configs"
 import { CopyButton } from "~/components/ui/button/CopyButton"
 import { Markdown } from "~/components/ui/markdown/Markdown"
 import { DebugRegistry } from "~/modules/debug/registry"
+
+import { getErrorCopyContent } from "./error-copy-content"
 
 export const getFetchErrorInfo = (
   error: Error,
@@ -54,6 +57,21 @@ export const getFetchErrorMessage = (error: Error) => {
   const { message } = getFetchErrorInfo(error)
   return message
 }
+
+const createErrorToastDescription = (copyContent: string, description?: ReactNode) =>
+  createElement("div", { className: "flex min-w-0 items-start gap-2" }, [
+    description ? createElement("div", { className: "min-w-0 flex-1" }, description) : undefined,
+    createElement(CopyButton, {
+      "aria-label": t("common:words.copy"),
+      className: cn(
+        "relative z-[1] shrink-0 border-transparent bg-theme-background text-text opacity-60 transition-opacity",
+        "hover:bg-material-ultra-thick hover:opacity-100 focus:border-text-tertiary",
+      ),
+      key: "copy",
+      title: t("common:words.copy"),
+      value: copyContent,
+    }),
+  ])
 
 /**
  * Just a wrapper around `toastFetchError` to create a function that can be used as a callback.
@@ -129,12 +147,18 @@ export const toastFetchError = (
 
   if (!_reason) {
     const title = _title || message || "Unknown error occurred"
-    toastOptions.description = _title ? message : ""
+    const copyContent = getErrorCopyContent({
+      title,
+      message: _title ? message : undefined,
+    })
     const isPaymentEnabled = getIsPaymentEnabled()
     const needUpgradeError = status && isPaymentEnabled ? status === 402 : false
-    if (needUpgradeError) {
-      toastOptions.description = "Please upgrade your plan."
-    }
+    const description = needUpgradeError
+      ? "Please upgrade your plan."
+      : _title
+        ? message
+        : undefined
+    toastOptions.description = createErrorToastDescription(copyContent, description)
     return toast.error(title, {
       ...toastOptions,
       action: needUpgradeError
@@ -147,22 +171,15 @@ export const toastFetchError = (
         : undefined,
     })
   } else {
-    return toast.error(message || _title, {
+    const title = message || _title || "Unknown error occurred"
+    const copyContent = getErrorCopyContent({ title, reason: _reason })
+    return toast.error(title, {
       duration: 5000,
       ...toastOptions,
-      description: createElement("div", {}, [
-        createElement(CopyButton, {
-          className: cn(
-            "relative z-[1] float-end -mt-1",
-            "border-transparent bg-theme-background text-text opacity-60 transition-opacity",
-            "hover:bg-material-ultra-thick hover:opacity-100 focus:border-text-tertiary",
-          ),
-          key: "copy",
-          value: _reason,
-        }),
+      description: createErrorToastDescription(copyContent, [
         createElement(Markdown, {
-          key: "reason",
           className: "text-sm opacity-70 min-w-0 flex-1 mt-1",
+          key: "reason",
           children: _reason,
         }),
       ]),
