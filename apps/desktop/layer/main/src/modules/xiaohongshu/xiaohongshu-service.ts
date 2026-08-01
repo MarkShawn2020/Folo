@@ -8,6 +8,11 @@ import path from "pathe"
 
 import { logger } from "~/logger"
 
+import {
+  getXiaohongshuServicePaths,
+  prepareXiaohongshuServiceData,
+} from "./xiaohongshu-service-session"
+
 const SERVICE_VERSION = "v2.2.6"
 const SERVICE_START_TIMEOUT = 180_000
 const SERVICE_PROBE_INTERVAL = 500
@@ -39,8 +44,7 @@ let hasRegisteredQuitHandler = false
 
 const getRuntimeAsset = () => runtimeAssets[`${process.platform}-${process.arch}`]
 
-const getServiceDirectory = () =>
-  path.join(app.getPath("userData"), "managed-tools", "xiaohongshu-mcp", SERVICE_VERSION)
+const getServicePaths = () => getXiaohongshuServicePaths(app.getPath("userData"), SERVICE_VERSION)
 
 const getDownloadUrl = (asset: RuntimeAsset) =>
   `https://github.com/xpzouying/xiaohongshu-mcp/releases/download/${SERVICE_VERSION}/${asset.name}`
@@ -108,7 +112,7 @@ const resolveBinary = async () => {
     )
   }
 
-  const binaryPath = path.join(getServiceDirectory(), asset.name)
+  const binaryPath = path.join(getServicePaths().versionDirectory, asset.name)
   if (!(await isValidBinary(binaryPath, asset))) {
     await downloadBinary(binaryPath, asset)
   }
@@ -176,8 +180,10 @@ const startManagedService = async (endpoint: string) => {
   }
 
   const binaryPath = await resolveBinary()
+  const servicePaths = getServicePaths()
+  await prepareXiaohongshuServiceData(servicePaths)
   const child = spawn(binaryPath, [], {
-    cwd: getServiceDirectory(),
+    cwd: servicePaths.dataDirectory,
     env: process.env,
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,

@@ -38,6 +38,9 @@ export interface XiaohongshuLocalImportResult {
 
 export const getXiaohongshuLocalFeedId = (userId: string) => `xiaohongshu-${userId}`
 
+export const isXiaohongshuLocalFeedId = (feedId: string | null | undefined): feedId is string =>
+  feedId?.startsWith("xiaohongshu-") === true
+
 const getXiaohongshuLocalEntryId = (feedId: string, noteId: string) => `${feedId}-${noteId}`
 
 export const getXiaohongshuNotePublishedAt = (noteId: string, index: number, now = new Date()) => {

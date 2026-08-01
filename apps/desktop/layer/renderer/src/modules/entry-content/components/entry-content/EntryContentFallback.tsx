@@ -1,8 +1,9 @@
-import { usePrefetchEntryDetail } from "@follow/store/entry/hooks"
+import { useHasEntry, usePrefetchEntryDetail } from "@follow/store/entry/hooks"
 import { memo, Suspense } from "react"
 
 import { EntryNotFound } from "~/components/errors/EntryNotFound"
 
+import { shouldShowEntryNotFound } from "./entry-content-fallback-state"
 import { EntryContentLoading } from "./EntryContentLoading"
 
 interface EntryContentFallbackProps {
@@ -17,9 +18,16 @@ interface EntryContentFallbackProps {
  * 3. Error boundary for entry not found cases
  */
 export const EntryContentFallback = memo(({ entryId, children }: EntryContentFallbackProps) => {
+  const hasLocalEntry = useHasEntry(entryId)
   const { data: realEntry, isPending: loadingRemoteEntry } = usePrefetchEntryDetail(entryId)
 
-  if (!loadingRemoteEntry && !realEntry) {
+  if (
+    shouldShowEntryNotFound({
+      hasLocalEntry,
+      loadingRemoteEntry,
+      hasRemoteEntry: Boolean(realEntry),
+    })
+  ) {
     // 404
     throw new EntryNotFound()
   }

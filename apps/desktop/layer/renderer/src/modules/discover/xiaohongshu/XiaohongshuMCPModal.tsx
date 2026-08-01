@@ -1,17 +1,25 @@
 import { Button } from "@follow/components/ui/button/index.js"
 import { Input } from "@follow/components/ui/input/index.js"
 import { Label } from "@follow/components/ui/label/index.jsx"
-import { FeedViewType } from "@follow/constants"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { useCurrentModal } from "~/components/ui/modal/stacked/hooks"
-import { useNavigateEntry } from "~/hooks/biz/useNavigateEntry"
 import { ipcServices } from "~/lib/client"
 import { useReplaceImgUrlIfNeed } from "~/lib/img-proxy"
 
 import { importXiaohongshuProfileToLocalFeed } from "./xiaohongshu-local-import"
+import {
+  clearCachedXiaohongshuLogin,
+  getCachedXiaohongshuLogin,
+  setCachedXiaohongshuLogin,
+  tryCachedXiaohongshuSearch,
+} from "./xiaohongshu-login-cache"
+import {
+  addAccountTask,
+  getAccountSubscriptionState,
+  removeAccountTask,
+} from "./xiaohongshu-subscription-state"
 
 interface XiaohongshuSearchAccount {
   userId: string
@@ -32,8 +40,6 @@ const getErrorMessage = (error: unknown) => {
 
 export function XiaohongshuMCPModal() {
   const { t } = useTranslation()
-  const { dismiss } = useCurrentModal()
-  const navigateEntry = useNavigateEntry()
   const replaceImgUrlIfNeed = useReplaceImgUrlIfNeed()
   const [keywords, setKeywords] = useState("")
   const [endpoint, setEndpoint] = useState("")
@@ -41,13 +47,21 @@ export function XiaohongshuMCPModal() {
   const [hasSearched, setHasSearched] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
-  const [subscribingUserId, setSubscribingUserId] = useState<string | null>(null)
+  const [subscribingUserIds, setSubscribingUserIds] = useState(() => new Set<string>())
+  const [subscribedUserIds, setSubscribedUserIds] = useState(() => new Set<string>())
   const [loginQRCode, setLoginQRCode] = useState("")
-  const [loginUsername, setLoginUsername] = useState("")
+  const [loginUsername, setLoginUsername] = useState(
+    () => getCachedXiaohongshuLogin({})?.username ?? "",
+  )
   const [pendingKeywords, setPendingKeywords] = useState<string | null>(null)
 
   const integrationServices = ipcServices?.integration
   const canUseLocalMCP = Boolean(window.electron && integrationServices)
+
+  useEffect(() => {
+    const cachedLogin = getCachedXiaohongshuLogin({ endpoint })
+    setLoginUsername(cachedLogin?.username ?? "")
+  }, [endpoint])
 
   const runSearch = useCallback(
     async (searchKeywords: string) => {
@@ -84,6 +98,11 @@ export function XiaohongshuMCPModal() {
         setLoginQRCode("")
         setPendingKeywords(null)
         setLoginUsername(status.username)
+        setCachedXiaohongshuLogin({
+          endpoint,
+          username: status.username,
+          userId: status.userId,
+        })
         toast.success(t("discover.xiaohongshu.login_success"))
         setIsSearching(true)
         try {
@@ -121,14 +140,36 @@ export function XiaohongshuMCPModal() {
       return
     }
 
+    const cachedLogin = getCachedXiaohongshuLogin({ endpoint })
     setIsSearching(true)
-    setIsPreparing(true)
+    setIsPreparing(!cachedLogin)
     setAccounts([])
     setHasSearched(false)
     try {
-      const status = await integrationServices.getXiaohongshuLoginStatus({
-        endpoint: endpoint.trim() || undefined,
+      let status: { isLoggedIn: boolean; username: string; userId: string }
+      const cachedSearchResult = await tryCachedXiaohongshuSearch({
+        cachedLogin,
+        search: () => runSearch(trimmedKeywords),
+        verifyLogin: () => {
+          setIsPreparing(true)
+          return integrationServices.getXiaohongshuLoginStatus({
+            endpoint: endpoint.trim() || undefined,
+          })
+        },
       })
+
+      if (cachedSearchResult.kind === "search-complete") {
+        return
+      }
+      if (cachedSearchResult.kind === "login-required") {
+        status = cachedSearchResult.status
+        clearCachedXiaohongshuLogin({ endpoint })
+        setLoginUsername("")
+      } else {
+        status = await integrationServices.getXiaohongshuLoginStatus({
+          endpoint: endpoint.trim() || undefined,
+        })
+      }
       setIsPreparing(false)
       setLoginUsername(status.username)
 
@@ -141,6 +182,12 @@ export function XiaohongshuMCPModal() {
           setPendingKeywords(trimmedKeywords)
           return
         }
+      } else {
+        setCachedXiaohongshuLogin({
+          endpoint,
+          username: status.username,
+          userId: status.userId,
+        })
       }
 
       setLoginQRCode("")
@@ -162,7 +209,11 @@ export function XiaohongshuMCPModal() {
       return
     }
 
-    setSubscribingUserId(account.userId)
+    if (subscribingUserIds.has(account.userId) || subscribedUserIds.has(account.userId)) {
+      return
+    }
+
+    setSubscribingUserIds((current) => addAccountTask(current, account.userId))
     try {
       const profile = await integrationServices.fetchXiaohongshuUserProfile({
         userId: account.userId,
@@ -177,18 +228,13 @@ export function XiaohongshuMCPModal() {
           count: imported.entryCount,
         }),
       )
-      dismiss()
-      navigateEntry({
-        feedId: imported.feedId,
-        entryId: null,
-        view: FeedViewType.Articles,
-      })
+      setSubscribedUserIds((current) => addAccountTask(current, account.userId))
     } catch (error) {
       toast.error(t("discover.xiaohongshu.subscribe_failed"), {
         description: getErrorMessage(error),
       })
     } finally {
-      setSubscribingUserId(null)
+      setSubscribingUserIds((current) => removeAccountTask(current, account.userId))
     }
   }
 
@@ -277,6 +323,11 @@ export function XiaohongshuMCPModal() {
             <div className="space-y-2">
               {accounts.map((account) => {
                 const avatarUrl = replaceImgUrlIfNeed(account.avatar) || account.avatar
+                const subscriptionState = getAccountSubscriptionState({
+                  userId: account.userId,
+                  syncingUserIds: subscribingUserIds,
+                  subscribedUserIds,
+                })
                 return (
                   <div
                     key={account.userId}
@@ -328,14 +379,22 @@ export function XiaohongshuMCPModal() {
                       <Button
                         type="button"
                         size="sm"
-                        disabled={
-                          Boolean(subscribingUserId) && subscribingUserId !== account.userId
-                        }
-                        isLoading={subscribingUserId === account.userId}
+                        disabled={subscriptionState.isDisabled}
+                        isLoading={subscriptionState.isSyncing}
                         onClick={() => void handleSubscribe(account)}
                       >
-                        <i className="i-mgc-add-cute-re mr-1 size-3.5" />
-                        {t("discover.xiaohongshu.subscribe")}
+                        <i
+                          className={
+                            subscriptionState.isSubscribed
+                              ? "i-mgc-check-circle-cute-fi mr-1 size-3.5"
+                              : "i-mgc-add-cute-re mr-1 size-3.5"
+                          }
+                        />
+                        <span>
+                          {subscriptionState.isSubscribed
+                            ? t("feed.actions.followed")
+                            : t("discover.xiaohongshu.subscribe")}
+                        </span>
                       </Button>
                     </div>
                   </div>

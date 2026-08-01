@@ -4,6 +4,7 @@ import {
   getXiaohongshuLocalFeedId,
   getXiaohongshuNotePublishedAt,
   importXiaohongshuProfileToLocalFeed,
+  isXiaohongshuLocalFeedId,
 } from "./xiaohongshu-local-import"
 
 const mocks = vi.hoisted(() => ({
@@ -43,6 +44,8 @@ describe("xiaohongshu local feed helpers", () => {
     expect(getXiaohongshuLocalFeedId("5975d7b55e87e7646c8e9cf5")).toBe(
       "xiaohongshu-5975d7b55e87e7646c8e9cf5",
     )
+    expect(isXiaohongshuLocalFeedId("xiaohongshu-5975d7b55e87e7646c8e9cf5")).toBe(true)
+    expect(isXiaohongshuLocalFeedId("41358761177015296")).toBe(false)
   })
 
   it("derives a note publish time from the timestamp prefix", () => {
