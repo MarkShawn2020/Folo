@@ -450,20 +450,27 @@ export const parseXiaohongshuSearchResults = (text: string): XiaohongshuSearchNo
   return parseLegacySearchResults(text)
 }
 
+const normalizePlatformSearchText = (value: string) =>
+  value.normalize("NFKC").toLocaleLowerCase().replaceAll(/\s+/g, "")
+
 const getAccountMatchRank = (account: XiaohongshuSearchAccount, keywords: string) => {
-  const normalizedKeywords = keywords.trim().toLowerCase()
+  const normalizedKeywords = normalizePlatformSearchText(keywords)
   if (!normalizedKeywords) {
     return 3
   }
 
-  const normalizedNickname = account.nickname.trim().toLowerCase()
+  const normalizedNickname = normalizePlatformSearchText(account.nickname)
   if (normalizedNickname === normalizedKeywords) {
     return 0
   }
   if (normalizedNickname.includes(normalizedKeywords)) {
     return 1
   }
-  if (account.sampleTitles.some((title) => title.toLowerCase().includes(normalizedKeywords))) {
+  if (
+    account.sampleTitles.some((title) =>
+      normalizePlatformSearchText(title).includes(normalizedKeywords),
+    )
+  ) {
     return 2
   }
   return 3
@@ -514,7 +521,12 @@ export const parseXiaohongshuSearchAccounts = (
     })
   }
 
-  return [...accounts.values()].sort((left, right) => {
+  const results = [...accounts.values()]
+  const strictResults = keywords.trim()
+    ? results.filter((account) => getAccountMatchRank(account, keywords) < 3)
+    : results
+
+  return strictResults.sort((left, right) => {
     const rankDifference =
       getAccountMatchRank(left, keywords) - getAccountMatchRank(right, keywords)
     if (rankDifference !== 0) {

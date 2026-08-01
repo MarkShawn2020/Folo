@@ -24,8 +24,7 @@ interface ChannelStatus {
 }
 
 interface ChannelRowProps {
-  icon: string
-  iconClassName?: string
+  icon: React.ReactNode
   name: string
   description: string
   status: ChannelStatus
@@ -43,19 +42,14 @@ const statusStyles: Record<ChannelState, string> = {
 const getErrorMessage = (error: unknown) =>
   getFetchErrorMessage(error instanceof Error ? error : new Error(String(error)))
 
-function ChannelRow({ icon, iconClassName, name, description, status, children }: ChannelRowProps) {
+function ChannelRow({ icon, name, description, status, children }: ChannelRowProps) {
   const { t } = useTranslation()
 
   return (
     <div className="rounded-xl border border-fill-secondary bg-material-ultra-thin p-4">
       <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "center size-10 shrink-0 rounded-xl bg-fill-quaternary text-text-secondary",
-            iconClassName,
-          )}
-        >
-          <i className={cn(icon, "size-5")} />
+        <div className="center size-10 shrink-0 rounded-xl bg-fill-quaternary text-text-secondary">
+          {icon}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -125,7 +119,11 @@ export function DiscoverChannelsPanel() {
         detail: !status.wcxPath
           ? t("discover.channels.wechat.runtime_required")
           : status.loggedIn
-            ? t("discover.wxmp.logged_in")
+            ? status.account?.nickname || status.account?.alias || status.account?.username
+              ? t("discover.wxmp.logged_in_as", {
+                  name: status.account.nickname || status.account.alias || status.account.username,
+                })
+              : t("discover.wxmp.logged_in")
             : t("discover.wxmp.logged_out"),
       })
     } catch (error) {
@@ -262,16 +260,14 @@ export function DiscoverChannelsPanel() {
 
       <div className="space-y-3">
         <ChannelRow
-          icon="i-mgc-rss-2-cute-re"
-          iconClassName="text-accent"
+          icon={<i className="i-mgc-rss-2-cute-fi size-5 text-accent" aria-hidden />}
           name={t("discover.channels.folo.name")}
           description={t("discover.channels.folo.description")}
           status={{ state: "ready" }}
         />
 
         <ChannelRow
-          icon="i-mgc-wechat-cute-re"
-          iconClassName="text-green"
+          icon={<i className="i-simple-icons-wechat size-5 text-green" aria-hidden />}
           name={t("discover.channels.wechat.name")}
           description={t("discover.channels.wechat.description")}
           status={wechatStatus}
@@ -309,8 +305,7 @@ export function DiscoverChannelsPanel() {
         </ChannelRow>
 
         <ChannelRow
-          icon="i-mgc-book-2-cute-re"
-          iconClassName="text-red"
+          icon={<i className="i-simple-icons-xiaohongshu size-5 text-red" aria-hidden />}
           name={t("discover.channels.xiaohongshu.name")}
           description={t("discover.channels.xiaohongshu.description")}
           status={xiaohongshuStatus}

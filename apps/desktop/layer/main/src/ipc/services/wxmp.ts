@@ -10,12 +10,16 @@ import { IpcMethod, IpcService } from "electron-ipc-decorator"
 import path from "pathe"
 
 import { store, StoreKey } from "~/lib/store"
+import type { WxmpLoginAccount } from "~/modules/wxmp/wxmp-account"
+import { isWxmpAccountSearchMatch, parseWxmpLoginAccount } from "~/modules/wxmp/wxmp-account"
 
 const execFileAsync = promisify(execFile)
 
 const LOGIN_URL = "https://mp.weixin.qq.com/"
 const LOGIN_WINDOW_TITLE = "WeChat Official Account Login"
 const WCX_MAX_BUFFER = 16 * 1024 * 1024
+const WCX_BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 interface WxmpStatus {
   wcxPath: string | null
@@ -23,6 +27,7 @@ interface WxmpStatus {
   cacheDbPath: string
   loggedIn: boolean
   token: string | null
+  account: WxmpLoginAccount | null
   accountCount: number
   articleCount: number
   contentCount: number
@@ -66,6 +71,7 @@ interface WxmpFetchResult {
 interface WcxConfig {
   token?: string
   cookie?: string
+  account?: WxmpLoginAccount | null
 }
 
 interface WcxCachePayload {
@@ -130,10 +136,31 @@ const readWcxConfig = async (): Promise<WcxConfig | null> => {
   }
 }
 
-const writeWcxConfig = async (config: Required<WcxConfig>) => {
+const writeWcxConfig = async (
+  config: WcxConfig & Required<Pick<WcxConfig, "token" | "cookie">>,
+) => {
   const configPath = getWcxConfigPath()
   await fsp.mkdir(path.dirname(configPath), { recursive: true })
   await fsp.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
+}
+
+const fetchWxmpLoginAccount = async (token: string, cookie: string) => {
+  const url = new URL("cgi-bin/home", LOGIN_URL)
+  url.searchParams.set("t", "home/index")
+  url.searchParams.set("lang", "zh_CN")
+  url.searchParams.set("token", token)
+
+  const response = await fetch(url, {
+    headers: {
+      Cookie: cookie,
+      Referer: LOGIN_URL,
+      "User-Agent": WCX_BROWSER_USER_AGENT,
+    },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!response.ok) return null
+
+  return parseWxmpLoginAccount(await response.text())
 }
 
 const getHomeDir = () => {
@@ -416,6 +443,21 @@ export class WxmpService extends IpcService {
   async status(): Promise<WxmpStatus> {
     const [wcxPath, config] = await Promise.all([locateWcx(), readWcxConfig()])
     const cacheDbPath = getWcxCacheDbPath()
+    const token = config?.token?.trim() || ""
+    const cookie = config?.cookie?.trim() || ""
+    const loggedIn = Boolean(token && cookie)
+    let account = config?.account || null
+
+    if (loggedIn && !account) {
+      try {
+        account = await fetchWxmpLoginAccount(token, cookie)
+        if (account) {
+          await writeWcxConfig({ ...config, token, cookie, account })
+        }
+      } catch {
+        // Login remains usable when account metadata cannot be refreshed.
+      }
+    }
 
     let counts = {
       accountCount: 0,
@@ -433,8 +475,9 @@ export class WxmpService extends IpcService {
       wcxPath,
       configPath: getWcxConfigPath(),
       cacheDbPath,
-      loggedIn: !!config?.token,
-      token: config?.token || null,
+      loggedIn,
+      token: token || null,
+      account,
       ...counts,
     }
   }
@@ -592,7 +635,8 @@ export class WxmpService extends IpcService {
     input: WxmpFetchInput,
   ): Promise<WxmpFetchResult | null> {
     try {
-      return await this.fetchChannel(context, input)
+      const result = await this.fetchChannel(context, input)
+      return isWxmpAccountSearchMatch(result.account, input.query) ? result : null
     } catch {
       return null
     }

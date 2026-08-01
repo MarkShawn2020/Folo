@@ -11,6 +11,12 @@ import {
 import { Input } from "@follow/components/ui/input/index.js"
 import { SegmentGroup, SegmentItem } from "@follow/components/ui/segment/index.js"
 import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPortal,
+  TooltipTrigger,
+} from "@follow/components/ui/tooltip/index.js"
 import { cn } from "@follow/utils/utils"
 import type { DiscoveryItem } from "@follow-app/client-sdk"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -68,6 +74,7 @@ function detectInputType(value: string): "rss" | "rsshub" | "search" {
 
 const searchTargets = ["feeds", "lists"] as const
 type SearchTarget = (typeof searchTargets)[number]
+const supportedChannelCount = 3
 
 const searchSchema = z.object({
   keyword: z.string().min(1),
@@ -192,7 +199,9 @@ export function UnifiedDiscoverForm() {
       keyword: keywordFromSearch || "",
       target: "feeds",
     },
-    mode: "all",
+    // Channel settings is adjacent to the input. Blurring an empty input to open it
+    // must not surface a search validation error.
+    mode: "onChange",
   })
 
   const { watch, trigger } = form
@@ -503,7 +512,7 @@ export function UnifiedDiscoverForm() {
               />
             )}
             <div className="center flex flex-col gap-3" data-testid="discover-form-actions">
-              <div className="flex w-full flex-col justify-center gap-2 sm:flex-row">
+              <div className="flex w-full items-center justify-center gap-1.5">
                 <Button
                   data-testid="discover-form-submit"
                   disabled={!form.formState.isValid}
@@ -514,22 +523,43 @@ export function UnifiedDiscoverForm() {
                   {detectedType !== "search" ? t("discover.preview") : t("words.search")}
                 </Button>
                 {detectedType === "search" && (
-                  <Button
-                    data-testid="discover-channels-trigger"
-                    type="button"
-                    variant="outline"
-                    buttonClassName="sm:min-w-28"
-                    onClick={() => {
-                      present({
-                        title: t("discover.channels.title"),
-                        content: () => <DiscoverChannelsPanel />,
-                        modalClassName: "max-w-3xl w-full",
-                      })
-                    }}
-                  >
-                    <i className="i-mgc-settings-6-cute-re mr-1.5 size-4" />
-                    {t("discover.channels.check_channels")}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        data-testid="discover-channels-trigger"
+                        type="button"
+                        variant="ghost"
+                        aria-label={t("discover.channels.settings_summary", {
+                          count: supportedChannelCount,
+                        })}
+                        buttonClassName="h-9 px-2 text-text-tertiary hover:text-text"
+                        textClassName="gap-1.5"
+                        onClick={() => {
+                          present({
+                            title: t("discover.channels.title"),
+                            content: () => <DiscoverChannelsPanel />,
+                            modalClassName: "max-w-3xl w-full",
+                          })
+                        }}
+                      >
+                        <i className="i-mgc-settings-7-cute-re size-4" aria-hidden />
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-text-quaternary"
+                          aria-hidden
+                        >
+                          <i className="i-mgc-rss-2-cute-fi size-3" />
+                          <span>({supportedChannelCount})</span>
+                        </span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipPortal>
+                      <TooltipContent>
+                        {t("discover.channels.settings_summary", {
+                          count: supportedChannelCount,
+                        })}
+                      </TooltipContent>
+                    </TooltipPortal>
+                  </Tooltip>
                 )}
               </div>
 

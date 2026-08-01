@@ -165,6 +165,52 @@ describe("xiaohongshu-mcp parsers", () => {
     ])
   })
 
+  it("filters fuzzy upstream accounts that do not contain the platform query", () => {
+    const raw = JSON.stringify({
+      feeds: [
+        {
+          xsecToken: "token-a",
+          id: "note-a",
+          noteCard: {
+            displayTitle: "独立开发周记",
+            user: { userId: "user-a", nickname: "手工川工作室" },
+          },
+        },
+        {
+          xsecToken: "token-b",
+          id: "note-b",
+          noteCard: {
+            displayTitle: "商业访谈提问法 Skills",
+            user: { userId: "user-b", nickname: "AI Lynn姐" },
+          },
+        },
+      ],
+    })
+
+    expect(parseXiaohongshuSearchAccounts(raw, "手工川")).toEqual([
+      expect.objectContaining({ userId: "user-a", nickname: "手工川工作室" }),
+    ])
+    expect(parseXiaohongshuSearchAccounts(raw, "手工穿")).toEqual([])
+  })
+
+  it("normalizes casing and whitespace without enabling fuzzy platform matches", () => {
+    const raw = JSON.stringify({
+      feeds: [
+        {
+          xsecToken: "token-a",
+          id: "note-a",
+          noteCard: {
+            displayTitle: "AI 产品观察",
+            user: { userId: "user-a", nickname: "AI Lynn 姐" },
+          },
+        },
+      ],
+    })
+
+    expect(parseXiaohongshuSearchAccounts(raw, " ai lynn ")).toHaveLength(1)
+    expect(parseXiaohongshuSearchAccounts(raw, "AI Lin")).toEqual([])
+  })
+
   it("parses a user profile with its account metadata and notes", () => {
     const raw = JSON.stringify({
       userBasicInfo: {
