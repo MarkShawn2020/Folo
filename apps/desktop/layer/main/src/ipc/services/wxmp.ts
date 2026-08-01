@@ -4,7 +4,7 @@ import fsp from "node:fs/promises"
 import os from "node:os"
 import { promisify } from "node:util"
 
-import { app, BrowserWindow, dialog } from "electron"
+import { app, BrowserWindow, dialog, session } from "electron"
 import type { IpcContext } from "electron-ipc-decorator"
 import { IpcMethod, IpcService } from "electron-ipc-decorator"
 import path from "pathe"
@@ -564,6 +564,18 @@ export class WxmpService extends IpcService {
         })
       })
     })
+  }
+
+  @IpcMethod()
+  async logout(): Promise<WxmpStatus> {
+    await Promise.all([
+      fsp.rm(getWcxConfigPath(), { force: true }),
+      session.defaultSession.clearStorageData({
+        origin: new URL(LOGIN_URL).origin,
+        storages: ["cookies"],
+      }),
+    ])
+    return this.status()
   }
 
   @IpcMethod()

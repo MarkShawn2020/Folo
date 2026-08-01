@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  deleteXiaohongshuCookies,
   getXiaohongshuLoginStatus,
   parseXiaohongshuNoteContent,
   parseXiaohongshuSearchAccounts,
@@ -441,6 +442,35 @@ describe("xiaohongshu-mcp connection", () => {
       userId: "user-a",
     })
     expect(ensureLocalXiaohongshuMCP).toHaveBeenCalledWith("http://localhost:18060/mcp")
+  })
+
+  it("deletes the active login cookies through the MCP tool", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }), {
+          headers: { "mcp-session-id": "session-a" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 202 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            result: { content: [{ type: "text", text: "Cookies deleted" }] },
+          }),
+        ),
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(deleteXiaohongshuCookies()).resolves.toBeUndefined()
+
+    const toolRequest = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))
+    expect(toolRequest.params).toEqual({
+      name: "delete_cookies",
+      arguments: {},
+    })
   })
 
   it("does not manage a custom MCP endpoint", async () => {

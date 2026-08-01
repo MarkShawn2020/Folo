@@ -23,6 +23,16 @@ interface ChannelStatus {
   detail?: string
 }
 
+interface WechatStatusResponse {
+  loggedIn: boolean
+  wcxPath: string | null
+  account: {
+    nickname: string | null
+    alias: string | null
+    username: string | null
+  } | null
+}
+
 interface ChannelRowProps {
   icon: React.ReactNode
   name: string
@@ -84,7 +94,9 @@ export function DiscoverChannelsPanel() {
     canUseDesktopChannels ? { state: "checking" } : { state: "unavailable" },
   )
   const [wechatNeedsSetup, setWechatNeedsSetup] = useState(false)
+  const [wechatIsLoggedIn, setWechatIsLoggedIn] = useState(false)
   const [isWechatLoggingIn, setIsWechatLoggingIn] = useState(false)
+  const [isWechatLoggingOut, setIsWechatLoggingOut] = useState(false)
   const cachedXiaohongshuLogin = useMemo(() => getCachedXiaohongshuLogin({}), [])
   const [xiaohongshuStatus, setXiaohongshuStatus] = useState<ChannelStatus>(() => {
     if (!canUseDesktopChannels) return { state: "unavailable" }
@@ -100,19 +112,17 @@ export function DiscoverChannelsPanel() {
     }
     return { state: "actionRequired" }
   })
+  const [xiaohongshuIsLoggedIn, setXiaohongshuIsLoggedIn] = useState(
+    Boolean(cachedXiaohongshuLogin),
+  )
   const [isXiaohongshuInitializing, setIsXiaohongshuInitializing] = useState(false)
+  const [isXiaohongshuLoggingOut, setIsXiaohongshuLoggingOut] = useState(false)
   const [xiaohongshuQRCode, setXiaohongshuQRCode] = useState("")
 
-  const refreshWechatStatus = useCallback(async () => {
-    if (!canUseDesktopChannels || !ipcServices?.wxmp) {
-      setWechatStatus({ state: "unavailable" })
-      return
-    }
-
-    setWechatStatus({ state: "checking" })
-    try {
-      const status = await ipcServices.wxmp.status()
+  const applyWechatStatus = useCallback(
+    (status: WechatStatusResponse) => {
       const isReady = status.loggedIn && Boolean(status.wcxPath)
+      setWechatIsLoggedIn(status.loggedIn)
       setWechatNeedsSetup(!status.wcxPath)
       setWechatStatus({
         state: isReady ? "ready" : "actionRequired",
@@ -126,10 +136,25 @@ export function DiscoverChannelsPanel() {
               : t("discover.wxmp.logged_in")
             : t("discover.wxmp.logged_out"),
       })
+    },
+    [t],
+  )
+
+  const refreshWechatStatus = useCallback(async () => {
+    if (!canUseDesktopChannels || !ipcServices?.wxmp) {
+      setWechatStatus({ state: "unavailable" })
+      return
+    }
+
+    setWechatStatus({ state: "checking" })
+    try {
+      const status = await ipcServices.wxmp.status()
+      applyWechatStatus(status)
     } catch (error) {
+      setWechatIsLoggedIn(false)
       setWechatStatus({ state: "actionRequired", detail: getErrorMessage(error) })
     }
-  }, [canUseDesktopChannels, t])
+  }, [applyWechatStatus, canUseDesktopChannels])
 
   useEffect(() => {
     void refreshWechatStatus()
@@ -151,9 +176,27 @@ export function DiscoverChannelsPanel() {
     }
   }
 
+  const logoutWechatCredentials = async () => {
+    if (!ipcServices?.wxmp) return
+
+    setIsWechatLoggingOut(true)
+    try {
+      const status = await ipcServices.wxmp.logout()
+      applyWechatStatus(status)
+      toast.success(t("discover.channels.logged_out"))
+    } catch (error) {
+      toast.error(t("discover.channels.logout_failed"), {
+        description: getErrorMessage(error),
+      })
+    } finally {
+      setIsWechatLoggingOut(false)
+    }
+  }
+
   const applyXiaohongshuLoginStatus = useCallback(
     (status: { isLoggedIn: boolean; username: string; userId: string }) => {
       if (status.isLoggedIn) {
+        setXiaohongshuIsLoggedIn(true)
         setCachedXiaohongshuLogin({
           username: status.username,
           userId: status.userId,
@@ -169,6 +212,7 @@ export function DiscoverChannelsPanel() {
       }
 
       clearCachedXiaohongshuLogin({})
+      setXiaohongshuIsLoggedIn(false)
       setXiaohongshuStatus({ state: "actionRequired" })
       return false
     },
@@ -214,6 +258,26 @@ export function DiscoverChannelsPanel() {
       })
     } finally {
       setIsXiaohongshuInitializing(false)
+    }
+  }
+
+  const logoutXiaohongshuCredentials = async () => {
+    if (!ipcServices?.integration) return
+
+    setIsXiaohongshuLoggingOut(true)
+    try {
+      await ipcServices.integration.logoutXiaohongshu({})
+      clearCachedXiaohongshuLogin({})
+      setXiaohongshuIsLoggedIn(false)
+      setXiaohongshuQRCode("")
+      setXiaohongshuStatus({ state: "actionRequired" })
+      toast.success(t("discover.channels.logged_out"))
+    } catch (error) {
+      toast.error(t("discover.channels.logout_failed"), {
+        description: getErrorMessage(error),
+      })
+    } finally {
+      setIsXiaohongshuLoggingOut(false)
     }
   }
 
@@ -272,11 +336,26 @@ export function DiscoverChannelsPanel() {
           description={t("discover.channels.wechat.description")}
           status={wechatStatus}
         >
+          {wechatIsLoggedIn && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              buttonClassName="text-red hover:bg-red/10"
+              data-testid="discover-wechat-logout"
+              isLoading={isWechatLoggingOut}
+              disabled={isWechatLoggingIn}
+              onClick={() => void logoutWechatCredentials()}
+            >
+              <i className="i-mgc-exit-cute-re mr-1 size-3.5" />
+              {t("discover.channels.logout")}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={!canUseDesktopChannels}
+            disabled={!canUseDesktopChannels || isWechatLoggingOut}
             onClick={() => void refreshWechatStatus()}
           >
             <i className="i-mgc-refresh-2-cute-re mr-1 size-3.5" />
@@ -291,7 +370,7 @@ export function DiscoverChannelsPanel() {
           <Button
             type="button"
             size="sm"
-            disabled={!canUseDesktopChannels}
+            disabled={!canUseDesktopChannels || isWechatLoggingOut}
             isLoading={isWechatLoggingIn}
             onClick={() => void initializeWechatCredentials()}
           >
@@ -310,11 +389,26 @@ export function DiscoverChannelsPanel() {
           description={t("discover.channels.xiaohongshu.description")}
           status={xiaohongshuStatus}
         >
+          {xiaohongshuIsLoggedIn && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              buttonClassName="text-red hover:bg-red/10"
+              data-testid="discover-xiaohongshu-logout"
+              isLoading={isXiaohongshuLoggingOut}
+              disabled={isXiaohongshuInitializing}
+              onClick={() => void logoutXiaohongshuCredentials()}
+            >
+              <i className="i-mgc-exit-cute-re mr-1 size-3.5" />
+              {t("discover.channels.logout")}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={!canUseDesktopChannels}
+            disabled={!canUseDesktopChannels || isXiaohongshuLoggingOut}
             onClick={() => void checkXiaohongshuCredentials()}
           >
             <i className="i-mgc-refresh-2-cute-re mr-1 size-3.5" />
@@ -323,7 +417,7 @@ export function DiscoverChannelsPanel() {
           <Button
             type="button"
             size="sm"
-            disabled={!canUseDesktopChannels}
+            disabled={!canUseDesktopChannels || isXiaohongshuLoggingOut}
             isLoading={isXiaohongshuInitializing}
             onClick={() => void initializeXiaohongshuCredentials()}
           >

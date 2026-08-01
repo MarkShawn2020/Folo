@@ -85,7 +85,7 @@ type XiaohongshuApiResponse = {
   message?: string
 }
 
-type XiaohongshuToolName = "search_feeds" | "get_feed_detail" | "user_profile"
+type XiaohongshuToolName = "search_feeds" | "get_feed_detail" | "user_profile" | "delete_cookies"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -809,6 +809,10 @@ export async function getXiaohongshuLoginQRCode(
     image: getString(qrCode, "img"),
     timeout: getString(qrCode, "timeout"),
   }
+}
+
+export async function deleteXiaohongshuCookies(options?: XiaohongshuMCPOptions): Promise<void> {
+  await callXiaohongshuTool("delete_cookies", {}, options)
 }
 
 export async function searchXiaohongshuNotes(keywords: string, options?: XiaohongshuMCPOptions) {

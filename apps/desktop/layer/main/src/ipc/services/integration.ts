@@ -9,6 +9,7 @@ import path from "pathe"
 import { store } from "~/lib/store"
 import { logger } from "~/logger"
 import {
+  deleteXiaohongshuCookies,
   getXiaohongshuLoginQRCode,
   getXiaohongshuLoginStatus,
   getXiaohongshuNoteContent,
@@ -109,6 +110,14 @@ export class IntegrationService extends IpcService {
   @IpcMethod()
   async getXiaohongshuLoginQRCode(context: IpcContext, input: XiaohongshuMCPInput) {
     return getXiaohongshuLoginQRCode({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async logoutXiaohongshu(context: IpcContext, input: XiaohongshuMCPInput) {
+    await deleteXiaohongshuCookies({
       endpoint: input.endpoint,
       timeout: input.timeout,
     })
