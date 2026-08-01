@@ -73,6 +73,25 @@ const createErrorToastDescription = (copyContent: string, description?: ReactNod
     }),
   ])
 
+export const toastError = (message?: string, toastOptions: ExternalToast = {}) => {
+  const title = message || "Unknown error occurred"
+  const description =
+    typeof toastOptions.description === "function"
+      ? toastOptions.description()
+      : toastOptions.description
+
+  return toast.error(title, {
+    ...toastOptions,
+    description: createErrorToastDescription(
+      getErrorCopyContent({
+        title,
+        reason: typeof description === "string" ? description : undefined,
+      }),
+      description,
+    ),
+  })
+}
+
 /**
  * Just a wrapper around `toastFetchError` to create a function that can be used as a callback.
  */
