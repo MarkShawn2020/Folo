@@ -110,6 +110,30 @@ class SubscriptionActions implements Hydratable, Resetable {
       for (const subscription of subscriptions) {
         const subscriptionSetId = getSubscriptionDBId(subscription)
         const subscriptionStoreId = getSubscriptionStoreId(subscription)
+        const current = draft.data[subscriptionStoreId]
+
+        if (current) {
+          draft.subscriptionIdSet.delete(getSubscriptionDBId(current))
+          if (current.feedId && current.type === "feed") {
+            draft.feedIdByView[current.view]!.delete(current.feedId)
+            draft.feedIdByView[FeedViewType.All]!.delete(current.feedId)
+          }
+          if (current.listId && current.type === "list") {
+            draft.listIdByView[current.view]!.delete(current.listId)
+            draft.listIdByView[FeedViewType.All]!.delete(current.listId)
+          }
+          if (current.category) {
+            const categoryStillUsed = Object.entries(draft.data).some(
+              ([storeId, item]) =>
+                storeId !== subscriptionStoreId &&
+                item.view === current.view &&
+                item.category === current.category,
+            )
+            if (!categoryStillUsed) {
+              draft.categories[current.view]!.delete(current.category)
+            }
+          }
+        }
 
         draft.data[subscriptionStoreId] = subscription
         draft.subscriptionIdSet.add(subscriptionSetId)

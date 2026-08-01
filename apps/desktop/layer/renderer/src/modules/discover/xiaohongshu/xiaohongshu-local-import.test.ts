@@ -1,18 +1,23 @@
+import { FeedViewType } from "@follow/constants"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   getXiaohongshuLocalFeedId,
   getXiaohongshuNotePublishedAt,
+  getXiaohongshuSocialMediaSubscriptionUpdates,
   importXiaohongshuProfileToLocalFeed,
   isXiaohongshuLocalFeedId,
+  repairXiaohongshuSubscriptionViews,
 } from "./xiaohongshu-local-import"
 
 const mocks = vi.hoisted(() => ({
   getEntry: vi.fn(),
   upsertEntries: vi.fn(),
+  moveEntryViews: vi.fn(),
   getFlattenMapEntries: vi.fn(),
   upsertFeeds: vi.fn(),
   upsertSubscriptions: vi.fn(),
+  getSubscriptions: vi.fn(),
   updateUnread: vi.fn(),
 }))
 
@@ -20,6 +25,7 @@ vi.mock("@follow/store/entry/getter", () => ({ getEntry: mocks.getEntry }))
 vi.mock("@follow/store/entry/store", () => ({
   entryActions: {
     upsertMany: mocks.upsertEntries,
+    moveLocalFeedEntriesToView: mocks.moveEntryViews,
     getFlattenMapEntries: mocks.getFlattenMapEntries,
   },
 }))
@@ -28,6 +34,9 @@ vi.mock("@follow/store/feed/store", () => ({
 }))
 vi.mock("@follow/store/subscription/store", () => ({
   subscriptionActions: { upsertMany: mocks.upsertSubscriptions },
+  useSubscriptionStore: {
+    getState: () => ({ data: mocks.getSubscriptions() }),
+  },
 }))
 vi.mock("@follow/store/unread/store", () => ({
   unreadActions: { updateById: mocks.updateUnread },
@@ -38,6 +47,7 @@ describe("xiaohongshu local feed helpers", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getFlattenMapEntries.mockReturnValue({})
+    mocks.getSubscriptions.mockReturnValue({})
   })
 
   it("creates a stable local feed id for an account", () => {
@@ -106,6 +116,7 @@ describe("xiaohongshu local feed helpers", () => {
         feedId: "xiaohongshu-user-a",
         userId: "user-local",
         category: "小红书",
+        view: FeedViewType.SocialMedia,
       }),
     ])
     expect(mocks.upsertEntries).toHaveBeenCalledWith([
@@ -116,10 +127,61 @@ describe("xiaohongshu local feed helpers", () => {
       }),
     ])
     expect(mocks.updateUnread).toHaveBeenCalledWith("xiaohongshu-user-a", 1)
+    expect(mocks.moveEntryViews).toHaveBeenCalledWith({
+      feedIds: ["xiaohongshu-user-a"],
+      view: FeedViewType.SocialMedia,
+    })
     expect(result).toEqual({
       feedId: "xiaohongshu-user-a",
       entryCount: 1,
       unreadCount: 1,
+    })
+  })
+
+  it("moves existing Xiaohongshu subscriptions into the social media view", async () => {
+    const xiaohongshuSubscription = {
+      feedId: "xiaohongshu-user-a",
+      listId: null,
+      inboxId: null,
+      userId: "user-local",
+      view: FeedViewType.Articles,
+      isPrivate: true,
+      hideFromTimeline: false,
+      title: "城市漫游",
+      category: "小红书",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      type: "feed" as const,
+    }
+    const articleSubscription = {
+      ...xiaohongshuSubscription,
+      feedId: "regular-feed",
+      category: "文章",
+    }
+
+    expect(
+      getXiaohongshuSocialMediaSubscriptionUpdates([xiaohongshuSubscription, articleSubscription]),
+    ).toEqual([
+      {
+        ...xiaohongshuSubscription,
+        view: FeedViewType.SocialMedia,
+      },
+    ])
+
+    mocks.getSubscriptions.mockReturnValue({
+      "xiaohongshu-user-a": xiaohongshuSubscription,
+      "regular-feed": articleSubscription,
+    })
+
+    await expect(repairXiaohongshuSubscriptionViews()).resolves.toBe(1)
+    expect(mocks.upsertSubscriptions).toHaveBeenCalledWith([
+      {
+        ...xiaohongshuSubscription,
+        view: FeedViewType.SocialMedia,
+      },
+    ])
+    expect(mocks.moveEntryViews).toHaveBeenCalledWith({
+      feedIds: ["xiaohongshu-user-a"],
+      view: FeedViewType.SocialMedia,
     })
   })
 })

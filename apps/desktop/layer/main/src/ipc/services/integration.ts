@@ -16,6 +16,10 @@ import {
   searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "~/modules/xiaohongshu/xiaohongshu-mcp"
+import {
+  cancelXiaohongshuSearch,
+  runCancellableXiaohongshuSearch,
+} from "~/modules/xiaohongshu/xiaohongshu-search-session"
 import { hasCachedLocalXiaohongshuSession } from "~/modules/xiaohongshu/xiaohongshu-service"
 
 // Taken from https://github.com/rollup/rollup/blob/4f69d33af3b2ec9320c43c9e6c65ea23a02bdde3/src/utils/sanitizeFileName.ts
@@ -69,6 +73,11 @@ interface XiaohongshuMCPInput {
 
 interface SearchXiaohongshuNotesInput extends XiaohongshuMCPInput {
   keywords: string
+  requestId?: string
+}
+
+interface CancelXiaohongshuSearchInput {
+  requestId: string
 }
 
 interface FetchXiaohongshuNoteInput extends XiaohongshuMCPInput {
@@ -112,10 +121,13 @@ export class IntegrationService extends IpcService {
       throw new Error("Search keyword is required")
     }
 
-    return searchXiaohongshuNotes(keywords, {
-      endpoint: input.endpoint,
-      timeout: input.timeout,
-    })
+    return runCancellableXiaohongshuSearch(input.requestId, (signal) =>
+      searchXiaohongshuNotes(keywords, {
+        endpoint: input.endpoint,
+        timeout: input.timeout,
+        signal,
+      }),
+    )
   }
 
   @IpcMethod()
@@ -125,10 +137,18 @@ export class IntegrationService extends IpcService {
       throw new Error("Search keyword is required")
     }
 
-    return searchXiaohongshuAccounts(keywords, {
-      endpoint: input.endpoint,
-      timeout: input.timeout,
-    })
+    return runCancellableXiaohongshuSearch(input.requestId, (signal) =>
+      searchXiaohongshuAccounts(keywords, {
+        endpoint: input.endpoint,
+        timeout: input.timeout,
+        signal,
+      }),
+    )
+  }
+
+  @IpcMethod()
+  async cancelXiaohongshuSearch(context: IpcContext, input: CancelXiaohongshuSearchInput) {
+    return cancelXiaohongshuSearch(input.requestId)
   }
 
   @IpcMethod()
