@@ -16,6 +16,7 @@ import {
   searchXiaohongshuAccounts,
   searchXiaohongshuNotes,
 } from "~/modules/xiaohongshu/xiaohongshu-mcp"
+import { hasCachedLocalXiaohongshuSession } from "~/modules/xiaohongshu/xiaohongshu-service"
 
 // Taken from https://github.com/rollup/rollup/blob/4f69d33af3b2ec9320c43c9e6c65ea23a02bdde3/src/utils/sanitizeFileName.ts
 // https://datatracker.ietf.org/doc/html/rfc2396
@@ -81,6 +82,12 @@ interface FetchXiaohongshuUserProfileInput extends XiaohongshuMCPInput {
 
 export class IntegrationService extends IpcService {
   static override readonly groupName = "integration"
+
+  @IpcMethod()
+  async hasCachedXiaohongshuSession(context: IpcContext, input: XiaohongshuMCPInput) {
+    if (input.endpoint?.trim()) return false
+    return hasCachedLocalXiaohongshuSession()
+  }
 
   @IpcMethod()
   async getXiaohongshuLoginStatus(context: IpcContext, input: XiaohongshuMCPInput) {

@@ -140,12 +140,24 @@ export function XiaohongshuMCPModal() {
       return
     }
 
-    const cachedLogin = getCachedXiaohongshuLogin({ endpoint })
+    let cachedLogin = getCachedXiaohongshuLogin({ endpoint })
     setIsSearching(true)
     setIsPreparing(!cachedLogin)
     setAccounts([])
     setHasSearched(false)
     try {
+      if (!cachedLogin && !endpoint.trim()) {
+        const hasCachedSession = await integrationServices.hasCachedXiaohongshuSession({})
+        if (hasCachedSession) {
+          cachedLogin = {
+            username: loginUsername,
+            userId: "",
+            verifiedAt: Date.now(),
+          }
+          setIsPreparing(false)
+        }
+      }
+
       let status: { isLoggedIn: boolean; username: string; userId: string }
       const cachedSearchResult = await tryCachedXiaohongshuSearch({
         cachedLogin,

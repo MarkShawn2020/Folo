@@ -61,7 +61,7 @@ describe("Xiaohongshu login cache", () => {
   })
 
   it("searches immediately without another login probe when cached", async () => {
-    const search = vi.fn().mockResolvedValue()
+    const search = vi.fn().mockImplementation(async () => {})
     const verifyLogin = vi.fn()
 
     await expect(

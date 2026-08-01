@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import {
   getXiaohongshuServicePaths,
+  hasCachedXiaohongshuServiceSession,
   prepareXiaohongshuServiceData,
 } from "./xiaohongshu-service-session"
 
@@ -38,6 +39,7 @@ describe("Xiaohongshu managed service session", () => {
     await prepareXiaohongshuServiceData(paths)
 
     await expect(fsp.readFile(paths.cookiePath, "utf8")).resolves.toBe("persisted-cookie")
+    await expect(hasCachedXiaohongshuServiceSession(paths)).resolves.toBe(true)
     expect(paths.cookiePath).toBe(
       path.join(userDataPath, "managed-tools", "xiaohongshu-mcp", "data", "cookies.json"),
     )
@@ -54,5 +56,12 @@ describe("Xiaohongshu managed service session", () => {
     await prepareXiaohongshuServiceData(paths)
 
     await expect(fsp.readFile(paths.cookiePath, "utf8")).resolves.toBe("current-cookie")
+  })
+
+  it("reports an empty service directory as signed out", async () => {
+    const userDataPath = await createTemporaryDirectory()
+    const paths = getXiaohongshuServicePaths(userDataPath, "v2.2.6")
+
+    await expect(hasCachedXiaohongshuServiceSession(paths)).resolves.toBe(false)
   })
 })

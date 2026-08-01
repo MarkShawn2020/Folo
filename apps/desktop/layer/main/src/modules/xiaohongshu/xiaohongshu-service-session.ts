@@ -38,3 +38,20 @@ export const prepareXiaohongshuServiceData = async ({
     throw error
   }
 }
+
+export const hasCachedXiaohongshuServiceSession = async ({
+  cookiePath,
+  legacyCookiePath,
+}: ReturnType<typeof getXiaohongshuServicePaths>) => {
+  for (const candidate of [cookiePath, legacyCookiePath]) {
+    try {
+      const stat = await fsp.stat(candidate)
+      if (stat.isFile() && stat.size > 2) {
+        return true
+      }
+    } catch {
+      // Continue checking the other supported cache location.
+    }
+  }
+  return false
+}

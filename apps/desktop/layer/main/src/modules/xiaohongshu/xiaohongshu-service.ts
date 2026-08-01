@@ -10,6 +10,7 @@ import { logger } from "~/logger"
 
 import {
   getXiaohongshuServicePaths,
+  hasCachedXiaohongshuServiceSession,
   prepareXiaohongshuServiceData,
 } from "./xiaohongshu-service-session"
 
@@ -215,3 +216,6 @@ export const ensureLocalXiaohongshuMCP = async (endpoint: string) => {
   })
   await managedStartPromise
 }
+
+export const hasCachedLocalXiaohongshuSession = () =>
+  hasCachedXiaohongshuServiceSession(getServicePaths())
