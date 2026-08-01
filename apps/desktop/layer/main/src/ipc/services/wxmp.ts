@@ -16,6 +16,7 @@ import { isWxmpAccountSearchMatch, parseWxmpLoginAccount } from "~/modules/wxmp/
 const execFileAsync = promisify(execFile)
 
 const LOGIN_URL = "https://mp.weixin.qq.com/"
+const SEARCH_BIZ_URL = "https://mp.weixin.qq.com/cgi-bin/searchbiz"
 const LOGIN_WINDOW_TITLE = "WeChat Official Account Login"
 const WCX_MAX_BUFFER = 16 * 1024 * 1024
 const WCX_BROWSER_USER_AGENT =
@@ -66,6 +67,28 @@ interface WxmpFetchResult {
   articles: WxmpArticle[]
   stdout: string
   stderr: string
+}
+
+interface WxmpSearchAccount {
+  fakeid: string
+  nickname: string
+  alias: string | null
+  signature: string | null
+  avatar: string | null
+}
+
+interface WxmpSearchResponse {
+  base_resp?: {
+    ret?: number
+    err_msg?: string
+  }
+  list?: Array<{
+    fakeid?: string
+    nickname?: string
+    alias?: string | null
+    signature?: string | null
+    round_head_img?: string | null
+  }>
 }
 
 interface WcxConfig {
@@ -602,6 +625,68 @@ export class WxmpService extends IpcService {
 
     store.set(StoreKey.WxmpWcxPath, resolved)
     return this.status()
+  }
+
+  @IpcMethod()
+  async searchAccounts(input: { query: string }): Promise<WxmpSearchAccount[]> {
+    const query = input.query.trim()
+    if (!query) {
+      throw new Error("Missing WeChat Official Account name.")
+    }
+
+    const config = await readWcxConfig()
+    const token = config?.token?.trim()
+    const cookie = config?.cookie?.trim()
+    if (!token || !cookie) {
+      throw new Error("Sign in to WeChat Official Account before searching.")
+    }
+
+    const url = new URL(SEARCH_BIZ_URL)
+    url.searchParams.set("action", "search_biz")
+    url.searchParams.set("begin", "0")
+    url.searchParams.set("count", "5")
+    url.searchParams.set("query", query)
+    url.searchParams.set("token", token)
+    url.searchParams.set("lang", "zh_CN")
+    url.searchParams.set("f", "json")
+    url.searchParams.set("ajax", "1")
+
+    const response = await fetch(url, {
+      headers: {
+        Cookie: cookie,
+        Referer: `https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=${token}`,
+        Origin: "https://mp.weixin.qq.com",
+        "User-Agent": WCX_BROWSER_USER_AGENT,
+        Accept: "*/*",
+      },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) {
+      throw new Error(`WeChat account search failed with HTTP ${response.status}.`)
+    }
+
+    const payload = (await response.json()) as WxmpSearchResponse
+    const ret = payload.base_resp?.ret ?? 0
+    if (ret !== 0) {
+      throw new Error(
+        `WeChat account search failed (ret=${ret}): ${payload.base_resp?.err_msg || "unknown"}`,
+      )
+    }
+
+    return (payload.list || []).flatMap((account) => {
+      const fakeid = account.fakeid?.trim()
+      const nickname = account.nickname?.trim()
+      if (!fakeid || !nickname) return []
+      return [
+        {
+          fakeid,
+          nickname,
+          alias: account.alias?.trim() || null,
+          signature: account.signature?.trim() || null,
+          avatar: account.round_head_img?.trim() || null,
+        },
+      ]
+    })
   }
 
   @IpcMethod()

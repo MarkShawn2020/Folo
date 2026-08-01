@@ -24,7 +24,7 @@ import { repository } from "@pkg"
 import { useMutation } from "@tanstack/react-query"
 import { produce } from "immer"
 import type { ChangeEvent, CompositionEvent } from "react"
-import { startTransition, useCallback, useEffect, useMemo, useRef } from "react"
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router"
@@ -50,7 +50,7 @@ import { DiscoverInboxList } from "./DiscoverInboxList"
 import { DiscoverTransform } from "./DiscoverTransform"
 import { DiscoverUser } from "./DiscoverUser"
 import { FeedForm } from "./FeedForm"
-import { createWxmpDiscoveryItem, importWxmpChannelToLocalFeed } from "./wxmp-local-import"
+import { WechatChannelForm } from "./WechatChannelForm"
 import type { XiaohongshuSearchAccount } from "./xiaohongshu/types"
 import { getCachedXiaohongshuLogin } from "./xiaohongshu/xiaohongshu-login-cache"
 import { XiaohongshuAccountCard } from "./xiaohongshu/XiaohongshuAccountCard"
@@ -93,41 +93,24 @@ const rsshubSchema = z.object({
 
 type SearchFormData = z.infer<typeof searchSchema>
 
-const fetchWxmpDiscoveryItem = async (keyword: string): Promise<DiscoveryItem | null> => {
+interface WxmpSearchAccount {
+  fakeid: string
+  nickname: string
+  alias: string | null
+  signature: string | null
+  avatar: string | null
+}
+
+const searchWxmpAccounts = async (keyword: string): Promise<WxmpSearchAccount[]> => {
   if (!window.electron?.ipcRenderer || !ipcServices?.wxmp) {
-    return null
+    return []
   }
 
   try {
-    const result = await ipcServices.wxmp.tryFetchChannel({
-      query: keyword,
-      limit: 20,
-      withContent: true,
-    })
-    if (!result) {
-      return null
-    }
-    const imported = await importWxmpChannelToLocalFeed(result)
-    return createWxmpDiscoveryItem(result, imported)
+    return await ipcServices.wxmp.searchAccounts({ query: keyword })
   } catch {
-    return null
+    return []
   }
-}
-
-const mergeWxmpDiscoveryItem = (
-  data: DiscoveryItem[],
-  wxmpItem: DiscoveryItem | null,
-): DiscoveryItem[] => {
-  if (!wxmpItem) {
-    return data
-  }
-
-  const wxmpFeedId = wxmpItem.feed?.id
-  if (!wxmpFeedId) {
-    return data
-  }
-
-  return [wxmpItem, ...data.filter((item) => item.feed?.id !== wxmpFeedId)]
 }
 
 const fetchXiaohongshuAccounts = async (keyword: string): Promise<XiaohongshuSearchAccount[]> => {
@@ -208,6 +191,7 @@ export function UnifiedDiscoverForm() {
   const target = watch("target")
   const atomKey = useRef(keywordFromSearch + target)
   const isComposingRef = useRef(false)
+  const [wxmpSearchData, setWxmpSearchData] = useState<WxmpSearchAccount[]>([])
 
   // Validate default value from search params
   useEffect(() => {
@@ -251,26 +235,26 @@ export function UnifiedDiscoverForm() {
 
       // For search, perform discovery
       const trimmedKeyword = keyword.trim()
-      const [{ data }, wxmpItem, xiaohongshuAccounts] = await Promise.all([
+      const [{ data }, wxmpAccounts, xiaohongshuAccounts] = await Promise.all([
         followClient.api.discover.discover({
           keyword: trimmedKeyword,
           target,
         }),
-        target === "feeds" ? fetchWxmpDiscoveryItem(trimmedKeyword) : Promise.resolve(null),
+        target === "feeds" ? searchWxmpAccounts(trimmedKeyword) : Promise.resolve([]),
         target === "feeds" ? fetchXiaohongshuAccounts(trimmedKeyword) : Promise.resolve([]),
       ])
-      const mergedData = mergeWxmpDiscoveryItem(data, wxmpItem)
 
       setDiscoverSearchData((prev) => ({
         ...prev,
-        [atomKey.current]: mergedData,
+        [atomKey.current]: data,
       }))
+      setWxmpSearchData(wxmpAccounts)
       setXiaohongshuDiscoverSearchData((prev) => ({
         ...prev,
         [atomKey.current]: xiaohongshuAccounts,
       }))
 
-      return mergedData
+      return data
     },
     onError(error) {
       toastFetchError(error)
@@ -390,7 +374,8 @@ export function UnifiedDiscoverForm() {
   }
 
   const showTargetSelector = detectedType === "search"
-  const resultCount = discoverSearchData.length + xiaohongshuSearchData.length
+  const resultCount =
+    discoverSearchData.length + xiaohongshuSearchData.length + wxmpSearchData.length
 
   return (
     <>
@@ -627,6 +612,7 @@ export function UnifiedDiscoverForm() {
                 onClick={() => {
                   setDiscoverSearchData({})
                   setXiaohongshuDiscoverSearchData({})
+                  setWxmpSearchData([])
                   mutation.reset()
                 }}
               >
@@ -636,6 +622,46 @@ export function UnifiedDiscoverForm() {
           </div>
         )}
         <div className="space-y-4 text-sm">
+          {wxmpSearchData.map((account) => (
+            <button
+              type="button"
+              key={account.fakeid}
+              className="w-full rounded-xl border border-fill-secondary bg-background p-4 text-left transition-colors hover:bg-fill-secondary"
+              onClick={() => {
+                present({
+                  title: "抓取公众号文章",
+                  content: () => <WechatChannelForm initialQuery={account.fakeid} />,
+                  modalClassName: "max-w-2xl w-full",
+                })
+              }}
+            >
+              <div className="flex items-start gap-3">
+                {account.avatar ? (
+                  <img className="size-11 rounded-xl object-cover" src={account.avatar} alt="" />
+                ) : (
+                  <div className="center size-11 rounded-xl bg-green/10 text-green">
+                    <i className="i-mgc-wechat-cute-fi size-5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-base font-semibold text-text">
+                      {account.nickname}
+                    </span>
+                    <span className="rounded-full bg-green/10 px-2 py-0.5 text-xs font-medium text-green">
+                      公众号
+                    </span>
+                  </div>
+                  {(account.alias || account.signature) && (
+                    <p className="mt-1 line-clamp-2 text-sm text-text-secondary">
+                      {account.alias || account.signature}
+                    </p>
+                  )}
+                </div>
+                <span className="shrink-0 text-sm text-accent">选择后抓取</span>
+              </div>
+            </button>
+          ))}
           {xiaohongshuSearchData.map((account) => (
             <XiaohongshuAccountCard key={account.userId} account={account} />
           ))}
