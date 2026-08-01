@@ -33,17 +33,21 @@ import { toastFetchError } from "~/lib/error-parser"
 import {
   getDiscoverSearchData,
   setDiscoverSearchData,
+  setXiaohongshuDiscoverSearchData,
   useDiscoverSearchData,
+  useXiaohongshuDiscoverSearchData,
 } from "./atoms/discover"
+import { DiscoverChannelsPanel } from "./DiscoverChannelsPanel"
 import { DiscoverFeedCard } from "./DiscoverFeedCard"
 import { DiscoverImport } from "./DiscoverImport"
 import { DiscoverInboxList } from "./DiscoverInboxList"
 import { DiscoverTransform } from "./DiscoverTransform"
 import { DiscoverUser } from "./DiscoverUser"
 import { FeedForm } from "./FeedForm"
-import { WechatChannelForm } from "./WechatChannelForm"
 import { createWxmpDiscoveryItem, importWxmpChannelToLocalFeed } from "./wxmp-local-import"
-import { XiaohongshuMCPModal } from "./xiaohongshu/XiaohongshuMCPModal"
+import type { XiaohongshuSearchAccount } from "./xiaohongshu/types"
+import { getCachedXiaohongshuLogin } from "./xiaohongshu/xiaohongshu-login-cache"
+import { XiaohongshuAccountCard } from "./xiaohongshu/XiaohongshuAccountCard"
 
 const isFeedLikeUrl = (value: string) => {
   const trimmed = value.trim()
@@ -119,6 +123,28 @@ const mergeWxmpDiscoveryItem = (
   return [wxmpItem, ...data.filter((item) => item.feed?.id !== wxmpFeedId)]
 }
 
+const fetchXiaohongshuAccounts = async (keyword: string): Promise<XiaohongshuSearchAccount[]> => {
+  const integrationServices = ipcServices?.integration
+  if (!window.electron?.ipcRenderer || !integrationServices) {
+    return []
+  }
+
+  try {
+    const cachedLogin = getCachedXiaohongshuLogin({})
+    const hasCredential =
+      Boolean(cachedLogin) || (await integrationServices.hasCachedXiaohongshuSession({}))
+    if (!hasCredential) {
+      return []
+    }
+
+    const result = await integrationServices.searchXiaohongshuAccounts({ keywords: keyword })
+    return result.accounts
+  } catch {
+    // An optional local channel must not block results from the primary Folo search.
+    return []
+  }
+}
+
 // Compact Tool Link Component
 interface ToolLinkProps {
   icon: string
@@ -172,6 +198,7 @@ export function UnifiedDiscoverForm() {
   const { watch, trigger } = form
   const target = watch("target")
   const atomKey = useRef(keywordFromSearch + target)
+  const isComposingRef = useRef(false)
 
   // Validate default value from search params
   useEffect(() => {
@@ -182,6 +209,7 @@ export function UnifiedDiscoverForm() {
   }, [trigger, keywordFromSearch])
 
   const discoverSearchData = useDiscoverSearchData()?.[atomKey.current] || []
+  const xiaohongshuSearchData = useXiaohongshuDiscoverSearchData()?.[atomKey.current] || []
 
   const mutation = useMutation({
     mutationFn: async ({ keyword, target }: { keyword: string; target: SearchTarget }) => {
@@ -214,18 +242,23 @@ export function UnifiedDiscoverForm() {
 
       // For search, perform discovery
       const trimmedKeyword = keyword.trim()
-      const [{ data }, wxmpItem] = await Promise.all([
+      const [{ data }, wxmpItem, xiaohongshuAccounts] = await Promise.all([
         followClient.api.discover.discover({
           keyword: trimmedKeyword,
           target,
         }),
         target === "feeds" ? fetchWxmpDiscoveryItem(trimmedKeyword) : Promise.resolve(null),
+        target === "feeds" ? fetchXiaohongshuAccounts(trimmedKeyword) : Promise.resolve([]),
       ])
       const mergedData = mergeWxmpDiscoveryItem(data, wxmpItem)
 
       setDiscoverSearchData((prev) => ({
         ...prev,
         [atomKey.current]: mergedData,
+      }))
+      setXiaohongshuDiscoverSearchData((prev) => ({
+        ...prev,
+        [atomKey.current]: xiaohongshuAccounts,
       }))
 
       return mergedData
@@ -283,6 +316,9 @@ export function UnifiedDiscoverForm() {
           replace: true,
         },
       )
+      window.requestAnimationFrame(() => {
+        isComposingRef.current = false
+      })
     },
     [form, setSearchParams],
   )
@@ -345,12 +381,19 @@ export function UnifiedDiscoverForm() {
   }
 
   const showTargetSelector = detectedType === "search"
+  const resultCount = discoverSearchData.length + xiaohongshuSearchData.length
 
   return (
     <>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
+          onSubmitCapture={(event) => {
+            if (isComposingRef.current) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
+          }}
           className="w-full max-w-2xl"
           data-testid="discover-form"
         >
@@ -370,6 +413,9 @@ export function UnifiedDiscoverForm() {
                       {...field}
                       value={field.value || ""}
                       onChange={handleKeywordChange}
+                      onCompositionStart={() => {
+                        isComposingRef.current = true
+                      }}
                       onCompositionEnd={handleCompositionEnd}
                       placeholder="Enter URL, RSSHub route, or keyword..."
                       className="h-12 text-base"
@@ -457,14 +503,35 @@ export function UnifiedDiscoverForm() {
               />
             )}
             <div className="center flex flex-col gap-3" data-testid="discover-form-actions">
-              <Button
-                data-testid="discover-form-submit"
-                disabled={!form.formState.isValid}
-                type="submit"
-                isLoading={mutation.isPending}
-              >
-                {detectedType !== "search" ? t("discover.preview") : t("words.search")}
-              </Button>
+              <div className="flex w-full flex-col justify-center gap-2 sm:flex-row">
+                <Button
+                  data-testid="discover-form-submit"
+                  disabled={!form.formState.isValid}
+                  type="submit"
+                  isLoading={mutation.isPending}
+                  buttonClassName="sm:min-w-28"
+                >
+                  {detectedType !== "search" ? t("discover.preview") : t("words.search")}
+                </Button>
+                {detectedType === "search" && (
+                  <Button
+                    data-testid="discover-channels-trigger"
+                    type="button"
+                    variant="outline"
+                    buttonClassName="sm:min-w-28"
+                    onClick={() => {
+                      present({
+                        title: t("discover.channels.title"),
+                        content: () => <DiscoverChannelsPanel />,
+                        modalClassName: "max-w-3xl w-full",
+                      })
+                    }}
+                  >
+                    <i className="i-mgc-settings-6-cute-re mr-1.5 size-4" />
+                    {t("discover.channels.check_channels")}
+                  </Button>
+                )}
+              </div>
 
               {/* Compact Tools */}
               <div className="mt-5 flex items-center justify-center gap-3 text-xs">
@@ -512,28 +579,6 @@ export function UnifiedDiscoverForm() {
                     })
                   }}
                 />
-                <ToolLink
-                  icon="i-mgc-search-2-cute-re"
-                  label={t("discover.tools.xiaohongshu")}
-                  onClick={() => {
-                    present({
-                      title: t("discover.tools.xiaohongshu"),
-                      content: () => <XiaohongshuMCPModal />,
-                      modalClassName: "max-w-3xl w-full",
-                    })
-                  }}
-                />
-                <ToolLink
-                  icon="i-mgc-wechat-cute-re"
-                  label={t("discover.tools.wxmp")}
-                  onClick={() => {
-                    present({
-                      title: t("discover.wxmp.title"),
-                      content: () => <WechatChannelForm initialQuery={form.getValues("keyword")} />,
-                      modalClassName: "max-w-2xl w-full",
-                    })
-                  }}
-                />
               </div>
             </div>
           </div>
@@ -541,16 +586,17 @@ export function UnifiedDiscoverForm() {
       </Form>
 
       <div className="mt-8 w-full max-w-2xl">
-        {(mutation.isSuccess || !!discoverSearchData?.length) && (
+        {(mutation.isSuccess || resultCount > 0) && (
           <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
-            {t("discover.search.results", { count: discoverSearchData?.length || 0 })}
+            {t("discover.search.results", { count: resultCount })}
 
-            {discoverSearchData && discoverSearchData.length > 0 && (
+            {resultCount > 0 && (
               <MotionButtonBase
                 className="flex cursor-button items-center justify-between gap-2 hover:text-accent"
                 type="button"
                 onClick={() => {
                   setDiscoverSearchData({})
+                  setXiaohongshuDiscoverSearchData({})
                   mutation.reset()
                 }}
               >
@@ -560,6 +606,9 @@ export function UnifiedDiscoverForm() {
           </div>
         )}
         <div className="space-y-4 text-sm">
+          {xiaohongshuSearchData.map((account) => (
+            <XiaohongshuAccountCard key={account.userId} account={account} />
+          ))}
           {discoverSearchData?.map((item) => (
             <DiscoverFeedCard
               key={item.feed?.id || item.list?.id}
