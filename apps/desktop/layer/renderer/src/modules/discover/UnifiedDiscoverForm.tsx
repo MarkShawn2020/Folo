@@ -11,6 +11,12 @@ import {
 import { Input } from "@follow/components/ui/input/index.js"
 import { SegmentGroup, SegmentItem } from "@follow/components/ui/segment/index.js"
 import { ResponsiveSelect } from "@follow/components/ui/select/responsive.js"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipPortal,
+  TooltipTrigger,
+} from "@follow/components/ui/tooltip/index.js"
 import { cn } from "@follow/utils/utils"
 import type { DiscoveryItem } from "@follow-app/client-sdk"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -18,7 +24,7 @@ import { repository } from "@pkg"
 import { useMutation } from "@tanstack/react-query"
 import { produce } from "immer"
 import type { ChangeEvent, CompositionEvent } from "react"
-import { startTransition, useCallback, useEffect, useMemo, useRef } from "react"
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router"
@@ -27,18 +33,27 @@ import { z } from "zod"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
 import { useRequireLogin } from "~/hooks/common/useRequireLogin"
 import { followClient } from "~/lib/api-client"
+import { ipcServices } from "~/lib/client"
+import { toastFetchError } from "~/lib/error-parser"
 
 import {
   getDiscoverSearchData,
   setDiscoverSearchData,
+  setXiaohongshuDiscoverSearchData,
   useDiscoverSearchData,
+  useXiaohongshuDiscoverSearchData,
 } from "./atoms/discover"
+import { DiscoverChannelsPanel } from "./DiscoverChannelsPanel"
 import { DiscoverFeedCard } from "./DiscoverFeedCard"
 import { DiscoverImport } from "./DiscoverImport"
 import { DiscoverInboxList } from "./DiscoverInboxList"
 import { DiscoverTransform } from "./DiscoverTransform"
 import { DiscoverUser } from "./DiscoverUser"
 import { FeedForm } from "./FeedForm"
+import { WechatChannelForm } from "./WechatChannelForm"
+import type { XiaohongshuSearchAccount } from "./xiaohongshu/types"
+import { getCachedXiaohongshuLogin } from "./xiaohongshu/xiaohongshu-login-cache"
+import { XiaohongshuAccountCard } from "./xiaohongshu/XiaohongshuAccountCard"
 
 const isFeedLikeUrl = (value: string) => {
   const trimmed = value.trim()
@@ -57,9 +72,13 @@ function detectInputType(value: string): "rss" | "rsshub" | "search" {
   return "search"
 }
 
+const searchTargets = ["feeds", "lists"] as const
+type SearchTarget = (typeof searchTargets)[number]
+const supportedChannelCount = 3
+
 const searchSchema = z.object({
   keyword: z.string().min(1),
-  target: z.enum(["feeds", "lists"]),
+  target: z.enum(searchTargets),
 })
 
 const rssSchema = z.object({
@@ -73,6 +92,48 @@ const rsshubSchema = z.object({
 })
 
 type SearchFormData = z.infer<typeof searchSchema>
+
+interface WxmpSearchAccount {
+  fakeid: string
+  nickname: string
+  alias: string | null
+  signature: string | null
+  avatar: string | null
+}
+
+const searchWxmpAccounts = async (keyword: string): Promise<WxmpSearchAccount[]> => {
+  if (!window.electron?.ipcRenderer || !ipcServices?.wxmp) {
+    return []
+  }
+
+  try {
+    return await ipcServices.wxmp.searchAccounts({ query: keyword })
+  } catch {
+    return []
+  }
+}
+
+const fetchXiaohongshuAccounts = async (keyword: string): Promise<XiaohongshuSearchAccount[]> => {
+  const integrationServices = ipcServices?.integration
+  if (!window.electron?.ipcRenderer || !integrationServices) {
+    return []
+  }
+
+  try {
+    const cachedLogin = getCachedXiaohongshuLogin({})
+    const hasCredential =
+      Boolean(cachedLogin) || (await integrationServices.hasCachedXiaohongshuSession({}))
+    if (!hasCredential) {
+      return []
+    }
+
+    const result = await integrationServices.searchXiaohongshuAccounts({ keywords: keyword })
+    return result.accounts
+  } catch {
+    // An optional local channel must not block results from the primary Folo search.
+    return []
+  }
+}
 
 // Compact Tool Link Component
 interface ToolLinkProps {
@@ -121,12 +182,16 @@ export function UnifiedDiscoverForm() {
       keyword: keywordFromSearch || "",
       target: "feeds",
     },
-    mode: "all",
+    // Channel settings is adjacent to the input. Blurring an empty input to open it
+    // must not surface a search validation error.
+    mode: "onChange",
   })
 
   const { watch, trigger } = form
   const target = watch("target")
   const atomKey = useRef(keywordFromSearch + target)
+  const isComposingRef = useRef(false)
+  const [wxmpSearchData, setWxmpSearchData] = useState<WxmpSearchAccount[]>([])
 
   // Validate default value from search params
   useEffect(() => {
@@ -137,9 +202,10 @@ export function UnifiedDiscoverForm() {
   }, [trigger, keywordFromSearch])
 
   const discoverSearchData = useDiscoverSearchData()?.[atomKey.current] || []
+  const xiaohongshuSearchData = useXiaohongshuDiscoverSearchData()?.[atomKey.current] || []
 
   const mutation = useMutation({
-    mutationFn: async ({ keyword, target }: { keyword: string; target: "feeds" | "lists" }) => {
+    mutationFn: async ({ keyword, target }: { keyword: string; target: SearchTarget }) => {
       const inputType = detectInputType(keyword)
 
       // For RSS/RSSHub, validate and show feed form modal directly
@@ -168,17 +234,30 @@ export function UnifiedDiscoverForm() {
       }
 
       // For search, perform discovery
-      const { data } = await followClient.api.discover.discover({
-        keyword: keyword.trim(),
-        target,
-      })
+      const trimmedKeyword = keyword.trim()
+      const [{ data }, wxmpAccounts, xiaohongshuAccounts] = await Promise.all([
+        followClient.api.discover.discover({
+          keyword: trimmedKeyword,
+          target,
+        }),
+        target === "feeds" ? searchWxmpAccounts(trimmedKeyword) : Promise.resolve([]),
+        target === "feeds" ? fetchXiaohongshuAccounts(trimmedKeyword) : Promise.resolve([]),
+      ])
 
       setDiscoverSearchData((prev) => ({
         ...prev,
         [atomKey.current]: data,
       }))
+      setWxmpSearchData(wxmpAccounts)
+      setXiaohongshuDiscoverSearchData((prev) => ({
+        ...prev,
+        [atomKey.current]: xiaohongshuAccounts,
+      }))
 
       return data
+    },
+    onError(error) {
+      toastFetchError(error)
     },
   })
 
@@ -230,6 +309,9 @@ export function UnifiedDiscoverForm() {
           replace: true,
         },
       )
+      window.requestAnimationFrame(() => {
+        isComposingRef.current = false
+      })
     },
     [form, setSearchParams],
   )
@@ -278,7 +360,7 @@ export function UnifiedDiscoverForm() {
 
   const handleTargetChange = useCallback(
     (value: string) => {
-      form.setValue("target", value as "feeds" | "lists")
+      form.setValue("target", value as SearchTarget)
     },
     [form],
   )
@@ -292,12 +374,20 @@ export function UnifiedDiscoverForm() {
   }
 
   const showTargetSelector = detectedType === "search"
+  const resultCount =
+    discoverSearchData.length + xiaohongshuSearchData.length + wxmpSearchData.length
 
   return (
     <>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
+          onSubmitCapture={(event) => {
+            if (isComposingRef.current) {
+              event.preventDefault()
+              event.stopPropagation()
+            }
+          }}
           className="w-full max-w-2xl"
           data-testid="discover-form"
         >
@@ -317,6 +407,9 @@ export function UnifiedDiscoverForm() {
                       {...field}
                       value={field.value || ""}
                       onChange={handleKeywordChange}
+                      onCompositionStart={() => {
+                        isComposingRef.current = true
+                      }}
                       onCompositionEnd={handleCompositionEnd}
                       placeholder="Enter URL, RSSHub route, or keyword..."
                       className="h-12 text-base"
@@ -404,14 +497,56 @@ export function UnifiedDiscoverForm() {
               />
             )}
             <div className="center flex flex-col gap-3" data-testid="discover-form-actions">
-              <Button
-                data-testid="discover-form-submit"
-                disabled={!form.formState.isValid}
-                type="submit"
-                isLoading={mutation.isPending}
-              >
-                {detectedType === "search" ? t("words.search") : t("discover.preview")}
-              </Button>
+              <div className="flex w-full items-center justify-center gap-1.5">
+                <Button
+                  data-testid="discover-form-submit"
+                  disabled={!form.formState.isValid}
+                  type="submit"
+                  isLoading={mutation.isPending}
+                  buttonClassName="sm:min-w-28"
+                >
+                  {detectedType !== "search" ? t("discover.preview") : t("words.search")}
+                </Button>
+                {detectedType === "search" && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        data-testid="discover-channels-trigger"
+                        type="button"
+                        variant="ghost"
+                        aria-label={t("discover.channels.settings_summary", {
+                          count: supportedChannelCount,
+                        })}
+                        buttonClassName="h-9 px-2 text-text-tertiary hover:text-text"
+                        textClassName="gap-1.5"
+                        onClick={() => {
+                          present({
+                            title: t("discover.channels.title"),
+                            content: () => <DiscoverChannelsPanel />,
+                            modalClassName: "max-w-3xl w-full",
+                          })
+                        }}
+                      >
+                        <i className="i-mgc-settings-7-cute-re size-4" aria-hidden />
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-text-quaternary"
+                          aria-hidden
+                        >
+                          <i className="i-mgc-rss-2-cute-fi size-3" />
+                          <span>({supportedChannelCount})</span>
+                        </span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipPortal>
+                      <TooltipContent>
+                        {t("discover.channels.settings_summary", {
+                          count: supportedChannelCount,
+                        })}
+                      </TooltipContent>
+                    </TooltipPortal>
+                  </Tooltip>
+                )}
+              </div>
 
               {/* Compact Tools */}
               <div className="mt-5 flex items-center justify-center gap-3 text-xs">
@@ -466,16 +601,18 @@ export function UnifiedDiscoverForm() {
       </Form>
 
       <div className="mt-8 w-full max-w-2xl">
-        {(mutation.isSuccess || !!discoverSearchData?.length) && (
+        {(mutation.isSuccess || resultCount > 0) && (
           <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
-            {t("discover.search.results", { count: discoverSearchData?.length || 0 })}
+            {t("discover.search.results", { count: resultCount })}
 
-            {discoverSearchData && discoverSearchData.length > 0 && (
+            {resultCount > 0 && (
               <MotionButtonBase
                 className="flex cursor-button items-center justify-between gap-2 hover:text-accent"
                 type="button"
                 onClick={() => {
                   setDiscoverSearchData({})
+                  setXiaohongshuDiscoverSearchData({})
+                  setWxmpSearchData([])
                   mutation.reset()
                 }}
               >
@@ -485,6 +622,49 @@ export function UnifiedDiscoverForm() {
           </div>
         )}
         <div className="space-y-4 text-sm">
+          {wxmpSearchData.map((account) => (
+            <button
+              type="button"
+              key={account.fakeid}
+              className="w-full rounded-xl border border-fill-secondary bg-background p-4 text-left transition-colors hover:bg-fill-secondary"
+              onClick={() => {
+                present({
+                  title: "抓取公众号文章",
+                  content: () => <WechatChannelForm initialQuery={account.fakeid} />,
+                  modalClassName: "max-w-2xl w-full",
+                })
+              }}
+            >
+              <div className="flex items-start gap-3">
+                {account.avatar ? (
+                  <img className="size-11 rounded-xl object-cover" src={account.avatar} alt="" />
+                ) : (
+                  <div className="center size-11 rounded-xl bg-green/10 text-green">
+                    <i className="i-mgc-wechat-cute-fi size-5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-base font-semibold text-text">
+                      {account.nickname}
+                    </span>
+                    <span className="rounded-full bg-green/10 px-2 py-0.5 text-xs font-medium text-green">
+                      公众号
+                    </span>
+                  </div>
+                  {(account.alias || account.signature) && (
+                    <p className="mt-1 line-clamp-2 text-sm text-text-secondary">
+                      {account.alias || account.signature}
+                    </p>
+                  )}
+                </div>
+                <span className="shrink-0 text-sm text-accent">选择后抓取</span>
+              </div>
+            </button>
+          ))}
+          {xiaohongshuSearchData.map((account) => (
+            <XiaohongshuAccountCard key={account.userId} account={account} />
+          ))}
           {discoverSearchData?.map((item) => (
             <DiscoverFeedCard
               key={item.feed?.id || item.list?.id}

@@ -9,6 +9,7 @@ import { IpcMethod, IpcService } from "electron-ipc-decorator"
 import path from "pathe"
 
 import { START_IN_TRAY_ARGS } from "~/constants/app"
+import { filePathToAppUrl } from "~/helper"
 import { getCacheSize } from "~/lib/cleaner"
 import { i18n } from "~/lib/i18n"
 import { store, StoreKey } from "~/lib/store"
@@ -88,7 +89,7 @@ export class AppService extends IpcService {
           logger.verbose("[rendererUpdateReload]: skip reload in dev")
           break
         }
-        window.loadFile(appLoadEntry)
+        window.loadURL(filePathToAppUrl(appLoadEntry))
       } else window.destroy()
     }
 

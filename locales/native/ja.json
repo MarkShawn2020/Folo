@@ -55,6 +55,7 @@
   "menu.quitAndInstallUpdate": "デバッグ：終了してアップデートをインストール",
   "menu.redo": "やり直す",
   "menu.reload": "再読み込み",
+  "menu.restart": "{{name}} を再起動",
   "menu.search": "検索",
   "menu.selectAll": "すべてを選択",
   "menu.services": "サービス",

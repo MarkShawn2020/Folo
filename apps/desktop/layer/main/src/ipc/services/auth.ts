@@ -1,6 +1,11 @@
+import type { Server } from "node:http"
+import { createServer } from "node:http"
+
+import { callWindowExpose } from "@follow/shared/bridge"
 import { env } from "@follow/shared/env.desktop"
 import { createAuthRequestOriginHeaders, createDesktopAPIHeaders } from "@follow/utils/headers"
 import PKG from "@pkg"
+import { shell } from "electron"
 import type { IpcContext } from "electron-ipc-decorator"
 import { IpcMethod, IpcService } from "electron-ipc-decorator"
 
@@ -21,6 +26,20 @@ export class AuthService extends IpcService {
   static override readonly groupName = "auth"
 
   private pendingTwoFactorCookieHeader: string | null = null
+  private pendingSocialLoginServer: Server | null = null
+  private pendingSocialLoginTimeout: NodeJS.Timeout | null = null
+
+  private closePendingSocialLoginServer() {
+    if (this.pendingSocialLoginTimeout) {
+      clearTimeout(this.pendingSocialLoginTimeout)
+      this.pendingSocialLoginTimeout = null
+    }
+
+    if (this.pendingSocialLoginServer) {
+      this.pendingSocialLoginServer.close()
+      this.pendingSocialLoginServer = null
+    }
+  }
 
   private getAuthRequestHeaders(additionalHeaders?: Record<string, string>) {
     return {
@@ -288,6 +307,81 @@ export class AuthService extends IpcService {
       },
       payload.headers,
     )
+  }
+
+  @IpcMethod()
+  async signInWithSocial(_context: IpcContext, provider: string): Promise<void> {
+    this.closePendingSocialLoginServer()
+
+    const server = createServer((req, res) => {
+      void (async () => {
+        try {
+          const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1")
+          const token = requestUrl.searchParams.get("token")
+
+          if (requestUrl.pathname !== "/callback" || !token) {
+            res.writeHead(400, { "content-type": "text/plain; charset=utf-8" })
+            res.end("Invalid login callback.")
+            return
+          }
+
+          const mainWindow = WindowManager.getMainWindow()
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            res.writeHead(500, { "content-type": "text/plain; charset=utf-8" })
+            res.end("Folo development window is not available.")
+            return
+          }
+
+          await callWindowExpose(mainWindow).applyOneTimeToken(token)
+
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+          res.end(
+            '<!doctype html><meta charset="utf-8"><title>Folo Login</title><body>Login complete. You can close this page.</body>',
+          )
+        } catch (error) {
+          logger.error("Failed to complete social login callback:", error)
+          res.writeHead(500, { "content-type": "text/plain; charset=utf-8" })
+          res.end("Failed to complete login.")
+        } finally {
+          this.closePendingSocialLoginServer()
+        }
+      })()
+    })
+
+    this.pendingSocialLoginServer = server
+
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject)
+      server.listen(0, "127.0.0.1", () => {
+        server.off("error", reject)
+        resolve()
+      })
+    })
+
+    const address = server.address()
+    if (!address || typeof address === "string") {
+      this.closePendingSocialLoginServer()
+      throw new Error("Failed to start login callback server.")
+    }
+
+    this.pendingSocialLoginTimeout = setTimeout(
+      () => {
+        this.closePendingSocialLoginServer()
+      },
+      5 * 60 * 1000,
+    )
+
+    const callbackURL = `http://127.0.0.1:${address.port}/callback`
+    const loginURL = new URL("/login", env.VITE_WEB_URL)
+    loginURL.searchParams.set("provider", provider)
+    loginURL.searchParams.set("cli_callback", callbackURL)
+
+    try {
+      await shell.openExternal(loginURL.toString())
+    } catch (error) {
+      this.closePendingSocialLoginServer()
+      throw error
+    }
   }
 
   @IpcMethod()

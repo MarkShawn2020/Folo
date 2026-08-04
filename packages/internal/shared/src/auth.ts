@@ -1,5 +1,4 @@
 import { stripeClient } from "@better-auth/stripe/client"
-import { IN_ELECTRON } from "@follow/shared"
 import type { AuthPlugins } from "@follow-app/client-sdk/auth"
 import type { BetterAuthClientPlugin, BetterFetchOption } from "better-auth/client"
 import { createAuthClient } from "better-auth/client"
@@ -9,6 +8,8 @@ import {
   magicLinkClient,
   twoFactorClient,
 } from "better-auth/client/plugins"
+
+import { APP_PROTOCOL, IN_ELECTRON } from "./constants"
 
 type AuthPlugin = AuthPlugins[number]
 
@@ -64,6 +65,14 @@ export type AuthClient<ExtraPlugins extends BetterAuthClientPlugin[] = []> = Ret
 
 export type LoginRuntime = "browser" | "app"
 
+const LOGIN_APP_PROTOCOL_KEY = "app_protocol"
+const ALLOWED_LOGIN_APP_PROTOCOLS = new Set(["folo", "folo-dev", "follow", "follow-dev"])
+
+const getAllowedLoginAppProtocol = (search: string) => {
+  const protocol = new URLSearchParams(search).get(LOGIN_APP_PROTOCOL_KEY)
+  return protocol && ALLOWED_LOGIN_APP_PROTOCOLS.has(protocol) ? protocol : null
+}
+
 export class Auth {
   authClient: AuthClient
 
@@ -105,9 +114,25 @@ export class Auth {
     },
   ) => {
     const { email, password, headers } = args ?? {}
-    const callbackURL = runtime === "app" ? `${this.options.webURL}/login` : this.options.webURL
+    const appCallbackURL = new URL("/login", this.options.webURL)
+    if (typeof window !== "undefined") {
+      const appProtocol = getAllowedLoginAppProtocol(window.location.search)
+      if (appProtocol) {
+        appCallbackURL.searchParams.set(LOGIN_APP_PROTOCOL_KEY, appProtocol)
+      }
+    }
+
+    const callbackURL =
+      runtime === "app"
+        ? appCallbackURL.toString()
+        : runtime === "browser" && typeof window !== "undefined"
+          ? window.location.origin
+          : this.options.webURL
     if (IN_ELECTRON && provider !== "credential" && provider !== "magicLink") {
-      window.open(`${this.options.webURL}/login?provider=${provider}`)
+      const loginURL = new URL("/login", this.options.webURL)
+      loginURL.searchParams.set("provider", provider)
+      loginURL.searchParams.set(LOGIN_APP_PROTOCOL_KEY, APP_PROTOCOL)
+      window.open(loginURL.toString())
     } else {
       if (provider === "credential") {
         if (!email || !password) {

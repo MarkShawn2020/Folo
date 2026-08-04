@@ -329,8 +329,8 @@ importers:
         specifier: 4.1.1
         version: 4.1.1
       lovinsp:
-        specifier: 1.6.0
-        version: 1.6.0
+        specifier: 1.8.0
+        version: 1.8.0
       nbump:
         specifier: 2.1.8
         version: 2.1.8(conventional-commits-filter@5.0.0)
@@ -1739,8 +1739,8 @@ importers:
         specifier: 1.31.1
         version: 1.31.1
       lovinsp:
-        specifier: 1.6.0
-        version: 1.6.0
+        specifier: 1.8.0
+        version: 1.8.0
       masonic:
         specifier: 4.1.0
         version: 4.1.0(react@19.2.0)
@@ -5891,23 +5891,23 @@ packages:
     peerDependencies:
       '@inquirer/prompts': '>= 3 < 8'
 
-  '@lovinsp/core@1.6.0':
-    resolution: {integrity: sha512-zX7W3zss1uiSFBWW0OMeVw3Et5IeEX7RaqXK9M5fgqOtM57vEb/R8Mi9zLV/05TRHDJA9f9MA6jUuPOVMtkOLA==}
+  '@lovinsp/core@1.8.0':
+    resolution: {integrity: sha512-d0LcQXCj/wZPo3ckkDzB5657qBEycsQrLfcpbs0ytlHGsv5AunhRGQRU7kyihR4B7P9fWSEhb/q+tFtDI8OFTg==}
 
-  '@lovinsp/esbuild@1.6.0':
-    resolution: {integrity: sha512-0/YxIDNfz+SiLoEe+pGTYldzBwvxdGWMcMGlUNA8wu1WrN9Ut8iEkpprqKSpM2Zt/DCRyooJe8ooI+LROX2HVA==}
+  '@lovinsp/esbuild@1.8.0':
+    resolution: {integrity: sha512-9HXS5AB3AWo5aG3+aE2fX1zlb35T4U3RMgenEmBQr2EiWwYErXf3x2WEnCPaDi/DTR1YEPLtmqTVFe+pX4Lutw==}
 
-  '@lovinsp/mako@1.6.0':
-    resolution: {integrity: sha512-VWJdoWJxycXsDx4dmkBflFmfIxYZbqpv9838L3D4yUGV7LQ1xZ/tAkYXkHw/JPGEiwGHkElI76zugX35EK0XTQ==}
+  '@lovinsp/mako@1.8.0':
+    resolution: {integrity: sha512-OKDDGTnr9im0K+n35xvlg4ZmNQcaUMSRAtwPLLQ/MBIyvj86R3f+oclzuHOAtq847WKTUACj/spZSZlvLd0c2A==}
 
-  '@lovinsp/turbopack@1.6.0':
-    resolution: {integrity: sha512-1cDUcJr2xgVEBhWZtgxcclnujsE/sS91YL6hpbFUNvrnqw5O8IsVD5EDyVQVDdiCoJbSEMcfdO50S1m5kjRr3A==}
+  '@lovinsp/turbopack@1.8.0':
+    resolution: {integrity: sha512-1UlxJiyqF5bmkqlpHRgFyXYHUGTpEJ+iC+rUfwCcG6rnTOjHn0QcsogPikXi+gUWtCy+eoycncv5R4yd4qaHiw==}
 
-  '@lovinsp/vite@1.6.0':
-    resolution: {integrity: sha512-/fehj/WFrni1enr8cPmO70BlBgMMmtyFSDvqOqnK753TC2DHq9zCwWios4jaZvGZnUcJ2Sd1lhlx+4RKeqiAzA==}
+  '@lovinsp/vite@1.8.0':
+    resolution: {integrity: sha512-8zMLQtTDrzX3k4B1aoBW3nTDW+vsjy865vKQ33gv2eWC/WnP08Fgq55adWU//67MBWH1yt7nqe5VmF3hrqsYAQ==}
 
-  '@lovinsp/webpack@1.6.0':
-    resolution: {integrity: sha512-xnGIBXVi/38Vlqv7y2nPNSdMp/2eMP41f0GKmcrzY5R4tOIT2lgUBl9altoBtAeVW437guEQcnZj1SK7gW2lPw==}
+  '@lovinsp/webpack@1.8.0':
+    resolution: {integrity: sha512-Jk3dhTR2guOFrDdsFOVef8JBrRwDMdwjrI9v2EOD57MSMQWc6q+2GwsEMs07VbgetQloxgYYs1wT8nhbZt7NRQ==}
 
   '@malept/cross-spawn-promise@1.1.1':
     resolution: {integrity: sha512-RTBGWL5FWQcg9orDOCcp4LvItNzUPcyEU9bwaeJX0rJ1IQxzucC48Y0/sQLp/g6t99IQgAlGIaesJS+gTn7tVQ==}
@@ -13220,8 +13220,8 @@ packages:
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
 
-  lovinsp@1.6.0:
-    resolution: {integrity: sha512-tIbdpHkUBl1J7kmbSjHbkVkv8AoGOmI/KtqTYKkH9xvJyPM2D1Td8H5TW8HMk9ocDvYJG3xrK3D+TnvlcTr9HA==}
+  lovinsp@1.8.0:
+    resolution: {integrity: sha512-kRN5nDfyoYXBLqDZMldKzXv8j4743ANYTD7aLDcA6BI7zyh1EN1+QUf9nZKu//Hg6pTug1uNYCeoCMsGKjv/Lw==}
 
   lowdb@7.0.1:
     resolution: {integrity: sha512-neJAj8GwF0e8EpycYIDFqEPcx9Qz4GUho20jWFR7YiFeXzF1YMLdxB36PypcTSPMA+4+LvgyMacYhlr18Zlymw==}
@@ -22773,7 +22773,7 @@ snapshots:
       '@inquirer/prompts': 6.0.1
       '@inquirer/type': 1.5.5
 
-  '@lovinsp/core@1.6.0':
+  '@lovinsp/core@1.8.0':
     dependencies:
       '@vue/compiler-dom': 3.5.28
       chalk: 4.1.2
@@ -22783,35 +22783,35 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@lovinsp/esbuild@1.6.0':
+  '@lovinsp/esbuild@1.8.0':
     dependencies:
-      '@lovinsp/core': 1.6.0
+      '@lovinsp/core': 1.8.0
     transitivePeerDependencies:
       - supports-color
 
-  '@lovinsp/mako@1.6.0':
+  '@lovinsp/mako@1.8.0':
     dependencies:
-      '@lovinsp/core': 1.6.0
+      '@lovinsp/core': 1.8.0
     transitivePeerDependencies:
       - supports-color
 
-  '@lovinsp/turbopack@1.6.0':
+  '@lovinsp/turbopack@1.8.0':
     dependencies:
-      '@lovinsp/core': 1.6.0
-      '@lovinsp/webpack': 1.6.0
+      '@lovinsp/core': 1.8.0
+      '@lovinsp/webpack': 1.8.0
     transitivePeerDependencies:
       - supports-color
 
-  '@lovinsp/vite@1.6.0':
+  '@lovinsp/vite@1.8.0':
     dependencies:
-      '@lovinsp/core': 1.6.0
+      '@lovinsp/core': 1.8.0
       chalk: 4.1.1
     transitivePeerDependencies:
       - supports-color
 
-  '@lovinsp/webpack@1.6.0':
+  '@lovinsp/webpack@1.8.0':
     dependencies:
-      '@lovinsp/core': 1.6.0
+      '@lovinsp/core': 1.8.0
     transitivePeerDependencies:
       - supports-color
 
@@ -31593,14 +31593,14 @@ snapshots:
 
   loupe@3.2.1: {}
 
-  lovinsp@1.6.0:
+  lovinsp@1.8.0:
     dependencies:
-      '@lovinsp/core': 1.6.0
-      '@lovinsp/esbuild': 1.6.0
-      '@lovinsp/mako': 1.6.0
-      '@lovinsp/turbopack': 1.6.0
-      '@lovinsp/vite': 1.6.0
-      '@lovinsp/webpack': 1.6.0
+      '@lovinsp/core': 1.8.0
+      '@lovinsp/esbuild': 1.8.0
+      '@lovinsp/mako': 1.8.0
+      '@lovinsp/turbopack': 1.8.0
+      '@lovinsp/vite': 1.8.0
+      '@lovinsp/webpack': 1.8.0
       chalk: 4.1.1
     transitivePeerDependencies:
       - supports-color

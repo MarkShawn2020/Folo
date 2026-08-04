@@ -1,7 +1,7 @@
 {
   "name": "Folo",
   "type": "module",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "private": true,
   "description": "Follow everything in one place",
   "author": "Folo Team",
@@ -27,7 +27,7 @@
     "depcheck": "npx depcheck --quiet",
     "dev": "turbo run @follow/web#dev @follow/ssr#dev",
     "dev:debug": "export DEBUG=true && vite --debug",
-    "dev:electron": "electron-vite dev",
+    "dev:electron": "tsx scripts/patch-dev-app-name.ts && tsx scripts/dev-electron.ts",
     "dev:server": "pnpm run --filter=ssr dev",
     "dev:web": "cross-env WEB_BUILD=1 vite",
     "e2e": "playwright test -c e2e/playwright.config.ts",
@@ -79,7 +79,7 @@
     "happy-dom": "20.6.1",
     "html-minifier-terser": "7.2.0",
     "js-yaml": "4.1.1",
-    "lovinsp": "1.6.0",
+    "lovinsp": "1.8.0",
     "nbump": "2.1.8",
     "pathe": "2.0.3",
     "react": "19.0.0",
@@ -96,7 +96,7 @@
     "vite-plugin-route-builder": "0.4.1",
     "vite-tsconfig-paths": "6.1.1"
   },
-  "runtimeVersion": "1.6.2",
+  "runtimeVersion": "1.7.0",
   "productName": "Folo",
-  "mainHash": "2c6bfb5598d340461803ca9fd7581df321f7302172656d8f918d4fb17ce9da4f"
+  "mainHash": "ca1344faab29296356be9ec67510694eccc3affb07ef2dac4f2630ea1a3ff5a2"
 }
