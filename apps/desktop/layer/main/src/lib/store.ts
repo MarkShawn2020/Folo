@@ -17,9 +17,11 @@ type StoreData = {
     x: number
     y: number
   } | null
+  wxmpWcxPath?: string | null
 }
 export const store = new Store<StoreData>({ name: "db" })
 
 export enum StoreKey {
   CacheSizeLimit = "cacheSizeLimit",
+  WxmpWcxPath = "wxmpWcxPath",
 }

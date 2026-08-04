@@ -8,6 +8,20 @@ import path from "pathe"
 
 import { store } from "~/lib/store"
 import { logger } from "~/logger"
+import {
+  deleteXiaohongshuCookies,
+  getXiaohongshuLoginQRCode,
+  getXiaohongshuLoginStatus,
+  getXiaohongshuNoteContent,
+  getXiaohongshuUserProfile,
+  searchXiaohongshuAccounts,
+  searchXiaohongshuNotes,
+} from "~/modules/xiaohongshu/xiaohongshu-mcp"
+import {
+  cancelXiaohongshuSearch,
+  runCancellableXiaohongshuSearch,
+} from "~/modules/xiaohongshu/xiaohongshu-search-session"
+import { hasCachedLocalXiaohongshuSession } from "~/modules/xiaohongshu/xiaohongshu-service"
 
 // Taken from https://github.com/rollup/rollup/blob/4f69d33af3b2ec9320c43c9e6c65ea23a02bdde3/src/utils/sanitizeFileName.ts
 // https://datatracker.ietf.org/doc/html/rfc2396
@@ -53,8 +67,125 @@ interface CustomFetchInput {
   timeout?: number
 }
 
+interface XiaohongshuMCPInput {
+  endpoint?: string
+  timeout?: number
+}
+
+interface SearchXiaohongshuNotesInput extends XiaohongshuMCPInput {
+  keywords: string
+  requestId?: string
+}
+
+interface CancelXiaohongshuSearchInput {
+  requestId: string
+}
+
+interface FetchXiaohongshuNoteInput extends XiaohongshuMCPInput {
+  url: string
+}
+
+interface FetchXiaohongshuUserProfileInput extends XiaohongshuMCPInput {
+  userId: string
+  xsecToken: string
+}
+
 export class IntegrationService extends IpcService {
   static override readonly groupName = "integration"
+
+  @IpcMethod()
+  async hasCachedXiaohongshuSession(context: IpcContext, input: XiaohongshuMCPInput) {
+    if (input.endpoint?.trim()) return false
+    return hasCachedLocalXiaohongshuSession()
+  }
+
+  @IpcMethod()
+  async getXiaohongshuLoginStatus(context: IpcContext, input: XiaohongshuMCPInput) {
+    return getXiaohongshuLoginStatus({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async getXiaohongshuLoginQRCode(context: IpcContext, input: XiaohongshuMCPInput) {
+    return getXiaohongshuLoginQRCode({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async logoutXiaohongshu(context: IpcContext, input: XiaohongshuMCPInput) {
+    await deleteXiaohongshuCookies({
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async searchXiaohongshuNotes(context: IpcContext, input: SearchXiaohongshuNotesInput) {
+    const keywords = input.keywords.trim()
+    if (!keywords) {
+      throw new Error("Search keyword is required")
+    }
+
+    return runCancellableXiaohongshuSearch(input.requestId, (signal) =>
+      searchXiaohongshuNotes(keywords, {
+        endpoint: input.endpoint,
+        timeout: input.timeout,
+        signal,
+      }),
+    )
+  }
+
+  @IpcMethod()
+  async searchXiaohongshuAccounts(context: IpcContext, input: SearchXiaohongshuNotesInput) {
+    const keywords = input.keywords.trim()
+    if (!keywords) {
+      throw new Error("Search keyword is required")
+    }
+
+    return runCancellableXiaohongshuSearch(input.requestId, (signal) =>
+      searchXiaohongshuAccounts(keywords, {
+        endpoint: input.endpoint,
+        timeout: input.timeout,
+        signal,
+      }),
+    )
+  }
+
+  @IpcMethod()
+  async cancelXiaohongshuSearch(context: IpcContext, input: CancelXiaohongshuSearchInput) {
+    return cancelXiaohongshuSearch(input.requestId)
+  }
+
+  @IpcMethod()
+  async fetchXiaohongshuUserProfile(context: IpcContext, input: FetchXiaohongshuUserProfileInput) {
+    const userId = input.userId.trim()
+    const xsecToken = input.xsecToken.trim()
+    if (!userId || !xsecToken) {
+      throw new Error("Xiaohongshu user id and access token are required")
+    }
+
+    return getXiaohongshuUserProfile(userId, xsecToken, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
+
+  @IpcMethod()
+  async fetchXiaohongshuNote(context: IpcContext, input: FetchXiaohongshuNoteInput) {
+    const url = input.url.trim()
+    if (!url) {
+      throw new Error("Xiaohongshu note URL is required")
+    }
+
+    return getXiaohongshuNoteContent(url, {
+      endpoint: input.endpoint,
+      timeout: input.timeout,
+    })
+  }
 
   @IpcMethod()
   async saveToObsidian(

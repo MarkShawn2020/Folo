@@ -10,6 +10,7 @@ import { enableMapSet } from "immer"
 
 import { initI18n } from "~/i18n"
 import { hydrateSessionsFromLocalDb } from "~/modules/ai-chat-session"
+import { repairXiaohongshuSubscriptionViews } from "~/modules/discover/xiaohongshu/xiaohongshu-local-import"
 import { settingSyncQueue } from "~/modules/settings/helper/sync-queue"
 import { ElectronCloseEvent, ElectronShowEvent } from "~/providers/invalidate-query-provider"
 
@@ -34,6 +35,7 @@ export const initializeApp = async () => {
       migrateDatabase: true,
     })
   })
+  await apm("repairXiaohongshuSubscriptionViews", repairXiaohongshuSubscriptionViews)
 
   if (DEV) {
     const url = "/favicon-dev.ico"

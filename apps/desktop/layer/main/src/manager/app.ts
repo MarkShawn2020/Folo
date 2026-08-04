@@ -8,7 +8,7 @@ import path from "pathe"
 
 import { WindowManager } from "~/manager/window"
 
-import { getIconPath } from "../helper"
+import { getStandardIconPath } from "../helper"
 import { initializeIpcServices } from "../ipc"
 import { checkAndCleanCodeCache, clearCacheCronJob } from "../lib/cleaner"
 import { getSessionTokenFromCookies, syncSessionToCliConfig } from "../lib/cli-session-sync"
@@ -80,7 +80,7 @@ class AppManagerStatic {
 
   private setupAppVisuals() {
     if (app.dock) {
-      app.dock.setIcon(getIconPath())
+      app.dock.setIcon(getStandardIconPath())
     }
   }
 

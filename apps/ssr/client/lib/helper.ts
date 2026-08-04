@@ -62,10 +62,12 @@ export const openInFollowApp = ({
   deeplink,
   fallback,
   fallbackUrl,
+  scheme = DEEPLINK_SCHEME,
 }: {
   deeplink: string
   fallback?: () => void
   fallbackUrl?: string
+  scheme?: `${string}://`
 }): Promise<boolean> => {
   return new Promise((resolve) => {
     const timeout = 500
@@ -83,7 +85,7 @@ export const openInFollowApp = ({
 
     window.addEventListener("blur", handleBlur)
 
-    const deeplinkUrl = `${DEEPLINK_SCHEME}${deeplink}`
+    const deeplinkUrl = `${scheme}${deeplink}`
     console.info("Open deeplink:", deeplinkUrl)
     window.location.href = deeplinkUrl
 

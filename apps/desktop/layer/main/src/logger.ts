@@ -1,27 +1,34 @@
 import { app, shell } from "electron"
 import log from "electron-log"
 
+import { isDisconnectedStreamError } from "./logger-errors"
+
 export const logger = log.scope("main")
 log.initialize()
 
-// electron-log's console transport writes directly to process.stdout,
-// which throws EPIPE when the pipe is closed (common in `pnpm dev:electron`
-// where stdout is piped through turbo/pnpm). Swallow write errors so they
-// don't surface as "Uncaught Exception" dialogs in dev.
+// electron-log's console transport writes directly to process.stdout. A detached
+// terminal can report either EPIPE or EIO, depending on how its PTY was closed.
+// Disable only the console transport after detachment; file logging remains active.
+const disableConsoleTransport = () => {
+  log.transports.console.level = false
+}
+
 const originalWriteFn = log.transports.console.writeFn
 log.transports.console.writeFn = (opts) => {
   try {
     originalWriteFn(opts)
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException)?.code !== "EPIPE") throw e
+  } catch (error) {
+    if (!isDisconnectedStreamError(error)) throw error
+    disableConsoleTransport()
   }
 }
 
 // Belt-and-suspenders: some native code paths bypass electron-log entirely
-// and write to stdout/stderr directly. Swallow EPIPE there too.
+// and write to stdout/stderr directly.
 for (const stream of [process.stdout, process.stderr]) {
-  stream.on("error", (e: NodeJS.ErrnoException) => {
-    if (e.code !== "EPIPE") throw e
+  stream.on("error", (error: NodeJS.ErrnoException) => {
+    if (!isDisconnectedStreamError(error)) throw error
+    disableConsoleTransport()
   })
 }
 
@@ -36,7 +43,7 @@ export async function revealLogFile() {
 
 app.on("before-quit", () => {
   logger.info("App is quitting")
-  log.transports.console.level = false
+  disableConsoleTransport()
 })
 
 app.on("will-quit", () => {

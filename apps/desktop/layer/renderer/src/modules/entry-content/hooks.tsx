@@ -1,8 +1,10 @@
 import { isFreeRole } from "@follow/constants"
 import { useEntry, usePrefetchEntryDetail } from "@follow/store/entry/hooks"
+import { entryActions } from "@follow/store/entry/store"
 import { useEntryTranslation, usePrefetchEntryTranslation } from "@follow/store/translation/hooks"
 import { useUserRole } from "@follow/store/user/hooks"
 import { tracker } from "@follow/tracker"
+import { useQuery } from "@tanstack/react-query"
 import { createElement, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -11,6 +13,9 @@ import { useShowAITranslation } from "~/atoms/ai-translation"
 import { useEntryIsInReadability, useEntryIsInReadabilitySuccess } from "~/atoms/readability"
 import { useActionLanguage, useGeneralSettingKey } from "~/atoms/settings/general"
 import { useModalStack } from "~/components/ui/modal/stacked/hooks"
+import { ipcServices } from "~/lib/client"
+import { loadXiaohongshuEntryContent } from "~/modules/discover/xiaohongshu/xiaohongshu-entry-content"
+import { isXiaohongshuLocalFeedId } from "~/modules/discover/xiaohongshu/xiaohongshu-local-import"
 
 import { ImageGalleryContent } from "./components/ImageGalleryContent"
 
@@ -40,10 +45,31 @@ export const useGalleryModal = () => {
 
 export const useEntryContent = (entryId: string) => {
   const entry = useEntry(entryId, (state) => {
-    const { inboxHandle, content, readabilityContent } = state
-    return { inboxId: inboxHandle, content, readabilityContent }
+    const { inboxHandle, content, readabilityContent, feedId, url } = state
+    return { inboxId: inboxHandle, content, readabilityContent, feedId, url }
   })
-  const { error, data, isPending } = usePrefetchEntryDetail(entryId)
+  const remoteEntryQuery = usePrefetchEntryDetail(entryId)
+  const isLocalXiaohongshuEntry = isXiaohongshuLocalFeedId(entry?.feedId)
+  const integrationServices = ipcServices?.integration
+  const shouldLoadLocalContent = Boolean(
+    isLocalXiaohongshuEntry && !entry?.content && entry?.url && integrationServices,
+  )
+  const localEntryQuery = useQuery({
+    queryKey: ["xiaohongshu-entry-content", entryId, entry?.url],
+    queryFn: async () => {
+      if (!entry?.url || !integrationServices) return ""
+      const content = await loadXiaohongshuEntryContent({
+        url: entry.url,
+        fetchDetail: (input) => integrationServices.fetchXiaohongshuNote(input),
+      })
+      if (content) {
+        await entryActions.updateEntryContent({ entryId, content })
+      }
+      return content
+    },
+    enabled: shouldLoadLocalContent,
+    staleTime: Infinity,
+  })
 
   const isInReadabilityMode = useEntryIsInReadability(entryId)
   const isReadabilitySuccess = useEntryIsInReadabilitySuccess(entryId)
@@ -70,24 +96,32 @@ export const useEntryContent = (entryId: string) => {
   return useMemo(() => {
     const entryContent = isInReadabilityMode
       ? entry?.readabilityContent
-      : (entry?.content ?? data?.content)
+      : (entry?.content ??
+        (isLocalXiaohongshuEntry ? localEntryQuery.data : remoteEntryQuery.data?.content))
     const translatedContent = isInReadabilityMode
       ? contentTranslated?.readabilityContent
       : contentTranslated?.content
     const content = translatedContent || entryContent
     return {
       content,
-      error,
-      isPending,
+      error: isLocalXiaohongshuEntry ? localEntryQuery.error : remoteEntryQuery.error,
+      isPending: isLocalXiaohongshuEntry
+        ? shouldLoadLocalContent && localEntryQuery.isPending
+        : remoteEntryQuery.isPending,
     }
   }, [
     contentTranslated?.content,
     contentTranslated?.readabilityContent,
-    data?.content,
+    isLocalXiaohongshuEntry,
+    localEntryQuery.data,
+    localEntryQuery.error,
+    localEntryQuery.isPending,
+    remoteEntryQuery.data?.content,
+    remoteEntryQuery.error,
+    remoteEntryQuery.isPending,
+    shouldLoadLocalContent,
     entry?.content,
-    error,
     isInReadabilityMode,
-    isPending,
     entry?.readabilityContent,
   ])
 }

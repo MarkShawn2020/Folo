@@ -407,6 +407,23 @@ class EntryActions implements Hydratable, Resetable {
     })
   }
 
+  moveLocalFeedEntriesToView({ feedIds, view }: { feedIds: string[]; view: FeedViewType }) {
+    if (feedIds.length === 0) return
+    const feedIdSet = new Set(feedIds)
+
+    immerSet((draft) => {
+      for (const entry of Object.values(draft.data)) {
+        if (!entry.feedId || !feedIdSet.has(entry.feedId)) continue
+
+        for (const entryIds of Object.values(draft.entryIdByView)) {
+          entryIds.delete(entry.id)
+        }
+        draft.entryIdByView[FeedViewType.All]!.add(entry.id)
+        draft.entryIdByView[view]!.add(entry.id)
+      }
+    })
+  }
+
   resetByCategory({ category, entries }: { category?: Category; entries: EntryModel[] }) {
     if (!category) return
     immerSet((draft) => {

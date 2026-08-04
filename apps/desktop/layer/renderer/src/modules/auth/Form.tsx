@@ -23,6 +23,7 @@ import { useRecaptchaToken } from "~/hooks/common"
 import { loginHandler, signUp, twoFactor } from "~/lib/auth"
 import { ipcServices } from "~/lib/client"
 import { setAuthSessionToken } from "~/lib/client-session"
+import { toastError } from "~/lib/error-parser"
 import { handleSessionChanges } from "~/queries/auth"
 
 import { TOTPForm } from "../profile/two-factor"
@@ -181,7 +182,7 @@ export function LoginWithPassword({
       })
 
       if (result?.error) {
-        toast.error(result.error.message)
+        toastError(result.error.message)
         return
       }
 
@@ -204,7 +205,7 @@ export function LoginWithPassword({
           headers,
         })
     if (res?.error) {
-      toast.error(res.error.message)
+      toastError(res.error.message)
       return
     }
 
@@ -401,7 +402,7 @@ export function RegisterForm({
       })
 
       if (result?.error) {
-        toast.error(result.error.message)
+        toastError(result.error.message)
         return
       }
 
@@ -428,7 +429,7 @@ export function RegisterForm({
           },
           {
             onError(context) {
-              toast.error(context.error.message)
+              toastError(context.error.message)
             },
             headers,
           },
