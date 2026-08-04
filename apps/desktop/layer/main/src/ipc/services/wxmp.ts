@@ -462,8 +462,7 @@ finally:
 export class WxmpService extends IpcService {
   static override readonly groupName = "wxmp"
 
-  @IpcMethod()
-  async status(): Promise<WxmpStatus> {
+  private async getStatus(): Promise<WxmpStatus> {
     const [wcxPath, config] = await Promise.all([locateWcx(), readWcxConfig()])
     const cacheDbPath = getWcxCacheDbPath()
     const token = config?.token?.trim() || ""
@@ -506,6 +505,11 @@ export class WxmpService extends IpcService {
   }
 
   @IpcMethod()
+  async status(_context: IpcContext): Promise<WxmpStatus> {
+    return this.getStatus()
+  }
+
+  @IpcMethod()
   async openLogin(context: IpcContext): Promise<WxmpStatus> {
     const parent = BrowserWindow.fromWebContents(context.sender) || undefined
     const loginWindow = new BrowserWindow({
@@ -521,7 +525,7 @@ export class WxmpService extends IpcService {
       },
     })
 
-    const resolveStatus = () => this.status()
+    const resolveStatus = () => this.getStatus()
 
     return new Promise<WxmpStatus>((resolve, reject) => {
       let settled = false
@@ -590,7 +594,7 @@ export class WxmpService extends IpcService {
   }
 
   @IpcMethod()
-  async logout(): Promise<WxmpStatus> {
+  async logout(_context: IpcContext): Promise<WxmpStatus> {
     await Promise.all([
       fsp.rm(getWcxConfigPath(), { force: true }),
       session.defaultSession.clearStorageData({
@@ -598,7 +602,7 @@ export class WxmpService extends IpcService {
         storages: ["cookies"],
       }),
     ])
-    return this.status()
+    return this.getStatus()
   }
 
   @IpcMethod()
@@ -614,7 +618,7 @@ export class WxmpService extends IpcService {
       : await dialog.showOpenDialog(dialogOptions)
 
     if (result.canceled || result.filePaths.length === 0) {
-      return this.status()
+      return this.getStatus()
     }
 
     const selected = result.filePaths[0]!
@@ -624,11 +628,14 @@ export class WxmpService extends IpcService {
     }
 
     store.set(StoreKey.WxmpWcxPath, resolved)
-    return this.status()
+    return this.getStatus()
   }
 
   @IpcMethod()
-  async searchAccounts(input: { query: string }): Promise<WxmpSearchAccount[]> {
+  async searchAccounts(
+    _context: IpcContext,
+    input: { query: string },
+  ): Promise<WxmpSearchAccount[]> {
     const query = input.query.trim()
     if (!query) {
       throw new Error("Missing WeChat Official Account name.")
